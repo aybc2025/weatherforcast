@@ -80,7 +80,7 @@ body{
 }
 .drawer[open], .drawer.active{display:block}
 .drawer-sheet{
-  position:absolute;inset-inline-start:0;top:0;bottom:0;width:min(92vw,380px);background:#fff;border-inline-end:1px solid var(--brd);
+  position:absolute;inset-inline-start:0;top:0;bottom:0;width:min(92vw,420px);background:#fff;border-inline-end:1px solid var(--brd);
   box-shadow:var(--shadow);display:flex;flex-direction:column
 }
 .drawer-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--brd)}
@@ -93,7 +93,14 @@ body{
 .fav-item .meta .name{font-weight:700}
 .fav-actions{display:flex;gap:6px}
 
-/* חדש: תחזית לפי שעה */
+/* תחזית לפי שעה */
+.charts{padding:10px;display:flex;flex-direction:column;gap:12px}
+.chart-card{
+  background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:10px
+}
+.chart-title{font-weight:700;margin:4px 0 8px}
+canvas{width:100%;height:auto;display:block}
+
 .hourly-list{
   padding:10px;
   display:flex;
@@ -112,18 +119,9 @@ body{
   border-radius:12px;
   padding:8px 10px;
 }
-.hour-row .h{
-  font-weight:700;
-}
-.hour-row .v{
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px;
-  color:var(--muted);
-}
-.hour-row .v b{
-  color:var(--ink);
-}
+.hour-row .h{font-weight:700;}
+.hour-row .v{display:flex;flex-wrap:wrap;gap:10px;color:var(--muted);}
+.hour-row .v b{color:var(--ink);}
 
 @media (prefers-color-scheme: dark){
   :root{
@@ -136,4 +134,4 @@ body{
   .suggestions button{background:#0f1629;color:#e7ecf3}
   .suggestions button:hover{background:#15213a}
   .hour-row{background:#0f1629;border-color:#1f2a44}
-             }
+}
