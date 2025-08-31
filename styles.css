@@ -9,7 +9,7 @@
   --chip:#eef4ff;
   --ok:#0a7f3f;
   --warn:#b00020;
-  --grid:#d6dbe6;       /* חדש: צבע קווי רשת */
+  --grid:#d6dbe6;       /* קווי רשת לגרפים */
   --line1:#2b7de9;      /* קו טמפרטורה */
   --line2:#0a7f3f;      /* קו הסתברות משקעים */
   --shadow:0 2px 10px rgba(0,0,0,.06);
@@ -78,13 +78,20 @@ body{
 .suggestions button:not(:last-child){border-bottom:1px solid var(--brd)}
 .suggestions button:hover{background:#f3f6fb}
 
+/* ===== מגירות ===== */
 .drawer{
   position:fixed;inset:0;background:rgba(0,0,0,.25);display:none
 }
 .drawer[open], .drawer.active{display:block}
 .drawer-sheet{
-  position:absolute;inset-inline-start:0;top:0;bottom:0;width:min(92vw,420px);background:#fff;border-inline-end:1px solid var(--brd);
+  position:absolute;inset-inline-start:0;top:0;bottom:0;
+  width:100vw;            /* רחבה בנייד */
+  max-width:720px;        /* תקרת רוחב */
+  background:#fff;border-inline-end:1px solid var(--brd);
   box-shadow:var(--shadow);display:flex;flex-direction:column
+}
+@media (min-width: 900px){
+  .drawer-sheet{ max-width:520px; }
 }
 .drawer-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--brd)}
 .drawer-foot{margin-top:auto;padding:12px;border-top:1px solid var(--brd)}
@@ -96,7 +103,7 @@ body{
 .fav-item .meta .name{font-weight:700}
 .fav-actions{display:flex;gap:6px}
 
-/* ========= תחזית לפי שעה + גרפים ========= */
+/* ===== גרפים ===== */
 .charts{padding:10px;display:flex;flex-direction:column;gap:12px}
 .chart-card{
   background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:10px
@@ -104,10 +111,11 @@ body{
 .chart-title{font-weight:700;margin:4px 0 8px}
 canvas{
   width:100%;
-  height:220px;          /* גובה קבוע לנייד כדי שלא יקרוס */
+  height:300px;          /* גדול וברור יותר */
   display:block;
 }
 
+/* ===== רשימת שעות ===== */
 .hourly-list{
   padding:10px;
   display:flex;
