@@ -18,6 +18,7 @@
         <h1>מזג אוויר</h1>
       </div>
       <nav class="actions">
+        <button id="unitBtn" class="btn ghost" title="החלפת יחידות">°C</button>
         <button id="installBtn" class="btn ghost" title="התקנה למסך הבית" hidden>התקנה</button>
         <button id="favOpenBtn" class="btn ghost" title="מועדפים">★ מועדפים</button>
       </nav>
@@ -76,19 +77,30 @@
     </div>
   </aside>
 
-  <!-- חדש: מגירת תחזית לפי שעה -->
+  <!-- מגירת תחזית לפי שעה + גרפים -->
   <aside id="hourlyPanel" class="drawer" aria-hidden="true">
     <div class="drawer-sheet">
       <div class="drawer-head">
         <h3 id="hourlyTitle">תחזית לפי שעה</h3>
         <button id="hourlyCloseBtn" class="btn icon" aria-label="סגור">✕</button>
       </div>
-      <div id="hourlyBody" class="hourly-list">
-        <!-- ימולא דינמית -->
+
+      <!-- גרפים -->
+      <div class="charts">
+        <div class="chart-card">
+          <div class="chart-title">טמפרטורה לפי שעה</div>
+          <canvas id="tempChart" width="600" height="220" aria-label="גרף טמפרטורה"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">הסתברות משקעים (%) לפי שעה</div>
+          <canvas id="popChart" width="600" height="220" aria-label="גרף הסתברות משקעים"></canvas>
+        </div>
       </div>
+
+      <div id="hourlyBody" class="hourly-list"><!-- ימולא דינמית --></div>
     </div>
   </aside>
 
   <script src="./app.js"></script>
 </body>
-  </html>
+</html>
