@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>מזג אוויר – PWA</title>
+  <meta name="theme-color" content="#0a66c2" />
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="container hdr">
+      <div class="brand">
+        <img src="./icons/icon.svg" alt="" class="logo">
+        <h1>מזג אוויר</h1>
+      </div>
+      <nav class="actions">
+        <button id="installBtn" class="btn ghost" title="התקנה למסך הבית" hidden>התקנה</button>
+        <button id="favOpenBtn" class="btn ghost" title="מועדפים">★ מועדפים</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card search">
+      <div class="row">
+        <input id="cityInput" class="input" placeholder="חפשו עיר (למשל: New Westminster / תל אביב)" aria-label="חיפוש עיר">
+        <button id="searchBtn" class="btn">חיפוש</button>
+        <button id="locBtn" class="btn secondary">המיקום שלי</button>
+      </div>
+      <div id="suggestions" class="suggestions" role="listbox" aria-label="תוצאות חיפוש" hidden></div>
+      <p class="muted small">טיפ: אפשר עברית או אנגלית. הנתונים מ-Open-Meteo.</p>
+      <p id="error" class="error" role="alert" aria-live="assertive"></p>
+    </section>
+
+    <section id="resultWrap" class="result" hidden>
+      <div class="card head">
+        <div class="head-top">
+          <div>
+            <h2 id="placeTitle" class="place"></h2>
+            <p id="coords" class="muted small"></p>
+          </div>
+          <button id="favToggle" class="btn icon" title="הוסף/הסר מהמועדפים" aria-pressed="false">☆</button>
+        </div>
+        <div id="current" class="current"></div>
+        <div class="sunrow">
+          <div class="chip"><span>זריחה</span><b id="sunrise"></b></div>
+          <div class="chip"><span>שקיעה</span><b id="sunset"></b></div>
+          <div class="chip"><span>אזור זמן</span><b id="tz"></b></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="section-title">תחזית 7 ימים</h3>
+        <div id="dailyGrid" class="grid"></div>
+      </div>
+
+      <p class="muted small foot">מקור נתונים: Open-Meteo. זמנים מוצגים לפי אזור הזמן של היעד.</p>
+    </section>
+  </main>
+
+  <!-- מועדפים (צדדי) -->
+  <aside id="favPanel" class="drawer" aria-hidden="true">
+    <div class="drawer-sheet">
+      <div class="drawer-head">
+        <h3>מועדפים</h3>
+        <button id="favCloseBtn" class="btn icon" aria-label="סגור">✕</button>
+      </div>
+      <div id="favList" class="fav-list"></div>
+      <div class="drawer-foot">
+        <button id="favClearBtn" class="btn danger ghost">נקה הכול</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- חדש: מגירת תחזית לפי שעה -->
+  <aside id="hourlyPanel" class="drawer" aria-hidden="true">
+    <div class="drawer-sheet">
+      <div class="drawer-head">
+        <h3 id="hourlyTitle">תחזית לפי שעה</h3>
+        <button id="hourlyCloseBtn" class="btn icon" aria-label="סגור">✕</button>
+      </div>
+      <div id="hourlyBody" class="hourly-list">
+        <!-- ימולא דינמית -->
+      </div>
+    </div>
+  </aside>
+
+  <script src="./app.js"></script>
+</body>
+  </html>
