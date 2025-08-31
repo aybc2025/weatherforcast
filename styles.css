@@ -1,0 +1,139 @@
+:root{
+  --bg:#f6f8fb;
+  --card:#fff;
+  --ink:#0b1220;
+  --muted:#5b6876;
+  --brand:#0a66c2;
+  --brand-ink:#fff;
+  --brd:#e5e7eb;
+  --chip:#eef4ff;
+  --ok:#0a7f3f;
+  --warn:#b00020;
+  --shadow:0 2px 10px rgba(0,0,0,.06);
+  --radius:16px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  background:var(--bg);color:var(--ink);
+}
+.container{max-width:980px;margin:0 auto;padding:16px}
+.app-header{position:sticky;top:0;background:var(--brand);color:var(--brand-ink);z-index:10}
+.hdr{display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .logo{width:28px;height:28px}
+.brand h1{margin:12px 0;font-size:20px}
+.actions{display:flex;gap:8px}
+
+.card{
+  background:var(--card);border:1px solid var(--brd);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px;margin-bottom:12px
+}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.input{
+  flex:1;min-width:220px;border:1px solid var(--brd);border-radius:12px;padding:12px 14px;font-size:16px;background:#fff
+}
+.btn{
+  border:none;border-radius:12px;padding:12px 16px;font-size:16px;cursor:pointer;background:var(--brand);color:#fff
+}
+.btn.secondary{background:#eef2f7;color:#0a66c2;border:1px solid #c8d1e0}
+.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.7);color:#fff}
+.btn.icon{background:#f2f5f9;border:1px solid var(--brd);color:#111;padding:10px 12px}
+.btn.danger{border-color:#ffd6d6;color:#a30000}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.error{color:var(--warn);margin:6px 0 0}
+
+.result .head-top{display:flex;align-items:start;justify-content:space-between;gap:8px}
+.place{margin:0 0 6px;font-weight:800}
+.coords{margin:0}
+.current{font-size:18px;margin-top:10px}
+.sunrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{display:flex;gap:8px;align-items:center;background:var(--chip);border:1px solid #d6e6ff;padding:8px 10px;border-radius:999px}
+.chip b{font-weight:700}
+
+.section-title{margin:0 0 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.day{
+  border:1px solid var(--brd);border-radius:14px;padding:12px;background:#fff;cursor:pointer
+}
+.day:hover{outline:2px solid #cfe1ff}
+.day .d{font-weight:700;margin-bottom:4px}
+.day .wx{font-size:28px;margin:6px 0}
+.day .minmax{display:flex;gap:10px}
+.foot{margin:10px 2px}
+
+.suggestions{
+  position:relative;margin-top:8px;border-radius:12px;overflow:hidden;border:1px solid var(--brd);box-shadow:var(--shadow);background:#fff
+}
+.suggestions button{
+  display:block;width:100%;text-align:right;padding:10px 12px;border:none;background:#fff;cursor:pointer
+}
+.suggestions button:not(:last-child){border-bottom:1px solid var(--brd)}
+.suggestions button:hover{background:#f3f6fb}
+
+.drawer{
+  position:fixed;inset:0;background:rgba(0,0,0,.25);display:none
+}
+.drawer[open], .drawer.active{display:block}
+.drawer-sheet{
+  position:absolute;inset-inline-start:0;top:0;bottom:0;width:min(92vw,380px);background:#fff;border-inline-end:1px solid var(--brd);
+  box-shadow:var(--shadow);display:flex;flex-direction:column
+}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--brd)}
+.drawer-foot{margin-top:auto;padding:12px;border-top:1px solid var(--brd)}
+.fav-list{padding:8px 8px 80px;display:flex;flex-direction:column;gap:8px}
+.fav-item{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--brd);border-radius:12px;padding:10px;background:#fff
+}
+.fav-item .meta{display:flex;flex-direction:column}
+.fav-item .meta .name{font-weight:700}
+.fav-actions{display:flex;gap:6px}
+
+/* חדש: תחזית לפי שעה */
+.hourly-list{
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-height:calc(100vh - 120px);
+  overflow:auto;
+}
+.hour-row{
+  display:grid;
+  grid-template-columns: 80px 1fr;
+  gap:10px;
+  align-items:center;
+  border:1px solid var(--brd);
+  background:#fff;
+  border-radius:12px;
+  padding:8px 10px;
+}
+.hour-row .h{
+  font-weight:700;
+}
+.hour-row .v{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  color:var(--muted);
+}
+.hour-row .v b{
+  color:var(--ink);
+}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0b1220; --card:#0f1629; --ink:#e7ecf3; --muted:#a6b0be; --brd:#1f2a44; --chip:#0f2946;
+    --brand:#2b7de9; --brand-ink:#fff; --shadow:none;
+  }
+  .btn.icon{background:#0d1a30;border-color:#1f2a44;color:#e7ecf3}
+  .btn.secondary{background:#0d1a30;color:#e7ecf3;border-color:#1f2a44}
+  .suggestions{background:#0f1629}
+  .suggestions button{background:#0f1629;color:#e7ecf3}
+  .suggestions button:hover{background:#15213a}
+  .hour-row{background:#0f1629;border-color:#1f2a44}
+             }
