@@ -27,12 +27,16 @@ const hourlyCloseBtn = $('#hourlyCloseBtn');
 const hourlyBody = $('#hourlyBody');
 const hourlyTitle = $('#hourlyTitle');
 
+const unitBtn = $('#unitBtn');
 let beforeInstallPromptEvent = null;
 const installBtn = $('#installBtn');
 
 /* ====== מצב נוכחי ====== */
 let currentPlace = null;
 let currentTimezone = 'UTC';
+let unit = getUnit(); // 'C' | 'F'
+let lastDailyData = null; // נשמור להצגה מחדש לפי יחידות
+let lastCurrentWeather = null;
 
 /* ====== Service Worker ====== */
 if ('serviceWorker' in navigator) {
@@ -55,6 +59,23 @@ installBtn?.addEventListener('click', async () => {
   beforeInstallPromptEvent = null;
 });
 
+/* ====== עזרי יחידות ====== */
+function getUnit(){
+  return localStorage.getItem('weather:unit') === 'F' ? 'F' : 'C';
+}
+function setUnit(u){
+  unit = (u === 'F') ? 'F' : 'C';
+  localStorage.setItem('weather:unit', unit);
+  unitBtn.textContent = unit === 'F' ? '°F' : '°C';
+}
+setUnit(unit); // עדכון כפתור בהפעלה
+
+function cToF(c){ return (c * 9/5) + 32; }
+function fmtTemp(c){
+  const v = unit === 'F' ? cToF(c) : c;
+  return `${Math.round(v)}°`;
+}
+
 /* ====== עזרי תצוגה ====== */
 function wmoIcon(code){
   if (code === 0) return '☀️';
@@ -66,14 +87,12 @@ function wmoIcon(code){
   return '🌥️';
 }
 function fmtDate(d, tz){
-  try{
-    return new Date(d+'T00:00:00').toLocaleDateString('he-IL', {weekday:'short', day:'2-digit', month:'2-digit', timeZone: tz});
-  }catch{ return d; }
+  try{ return new Date(d+'T00:00:00').toLocaleDateString('he-IL', {weekday:'short', day:'2-digit', month:'2-digit', timeZone: tz}); }
+  catch{ return d; }
 }
 function fmtTime(iso, tz){
-  try{
-    return new Date(iso).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', timeZone: tz});
-  }catch{ return iso; }
+  try{ return new Date(iso).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', timeZone: tz}); }
+  catch{ return iso; }
 }
 function titleFromPlace(p){
   return [p.name, p.admin1, p.country].filter(Boolean).join(', ');
@@ -108,7 +127,6 @@ async function fetchForecast(lat, lon, tz='auto'){
   const r = await fetch(url); if(!r.ok) throw new Error('שגיאה בשליפת תחזית');
   return r.json();
 }
-/* חדש: תחזית לפי שעה ליום מסוים */
 async function fetchHourly(lat, lon, dateStr, tz='auto'){
   const url = new URL('https://api.open-meteo.com/v1/forecast');
   url.searchParams.set('latitude', lat);
@@ -122,32 +140,111 @@ async function fetchHourly(lat, lon, dateStr, tz='auto'){
   return r.json();
 }
 
+/* ====== ציור גרפים (Canvas, בלי ספריות) ====== */
+function dpiCanvas(canvas){
+  const ratio = Math.max(1, window.devicePixelRatio || 1);
+  const cssW = canvas.clientWidth || canvas.width;
+  const cssH = canvas.clientHeight || canvas.height;
+  canvas.width = Math.round(cssW * ratio);
+  canvas.height = Math.round(cssH * ratio);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  return ctx;
+}
+
+function drawLineChart(canvas, labels, values, {min=null, max=null, yLabelFormatter=(v)=>String(v), strokeStyle='#2b7de9', fill=false}={}){
+  const ctx = dpiCanvas(canvas);
+  const W = canvas.clientWidth;
+  const H = canvas.clientHeight;
+  ctx.clearRect(0,0,W,H);
+
+  const pad = {l:36, r:10, t:10, b:24};
+  const w = W - pad.l - pad.r;
+  const h = H - pad.t - pad.b;
+
+  // גבולות Y
+  const vmin = (min!==null) ? min : Math.min(...values);
+  const vmax = (max!==null) ? max : Math.max(...values);
+  const span = (vmax - vmin) || 1;
+
+  // צירים/קווי עזר
+  ctx.strokeStyle = '#d6dbe6';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i=0;i<=4;i++){
+    const y = pad.t + (h * i / 4);
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(W - pad.r, y);
+  }
+  ctx.stroke();
+
+  // תוויות Y
+  ctx.fillStyle = '#5b6876';
+  ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+  for (let i=0;i<=4;i++){
+    const v = vmax - (span * i / 4);
+    const y = pad.t + (h * i / 4);
+    ctx.fillText(yLabelFormatter(Math.round(v)), 4, y+4);
+  }
+
+  // קו הנתונים
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  values.forEach((v, i)=>{
+    const x = pad.l + (w * (values.length===1?0.5:i/(values.length-1)));
+    const y = pad.t + h - ((v - vmin) / span) * h;
+    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // מילוי אופציונלי
+  if (fill){
+    const grd = ctx.createLinearGradient(0, pad.t, 0, pad.t+h);
+    grd.addColorStop(0, 'rgba(43,125,233,.25)');
+    grd.addColorStop(1, 'rgba(43,125,233,0)');
+    ctx.fillStyle = grd;
+    ctx.lineTo(pad.l + w, pad.t + h);
+    ctx.lineTo(pad.l, pad.t + h);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // תוויות X דלילות (כל 3 שעות)
+  ctx.fillStyle = '#5b6876';
+  for (let i=0;i<labels.length;i+=3){
+    const x = pad.l + (w * (labels.length===1?0.5:i/(labels.length-1)));
+    ctx.fillText(labels[i], x-12, H-6);
+  }
+}
+
 /* ====== רינדור ====== */
 function render(place, data){
   currentPlace = place;
   currentTimezone = data.timezone || 'UTC';
+  lastDailyData = data.daily;
+  lastCurrentWeather = data.current_weather;
 
   // כותרות
   placeTitle.textContent = titleFromPlace(place);
   coordsEl.textContent = `lat ${(+place.latitude).toFixed(3)}, lon ${(+place.longitude).toFixed(3)}`;
 
-  // נוכחי
-  const cw = data.current_weather;
+  // נוכחי (מומר ליחידת תצוגה)
   currentBox.innerHTML = `
-    עכשיו: ${wmoIcon(cw.weathercode)}
-    <b>${cw.temperature}°C</b>
-    · רוח ${cw.windspeed} קמ"ש (כיוון ${cw.winddirection}°)
-    · מעודכן: ${fmtTime(cw.time, currentTimezone)}
+    עכשיו: ${wmoIcon(lastCurrentWeather.weathercode)}
+    <b>${fmtTemp(lastCurrentWeather.temperature)}</b>
+    · רוח ${lastCurrentWeather.windspeed} קמ"ש (כיוון ${lastCurrentWeather.winddirection}°)
+    · מעודכן: ${fmtTime(lastCurrentWeather.time, currentTimezone)}
   `;
 
   // זריחה/שקיעה
-  sunriseEl.textContent = fmtTime(data.daily.sunrise[0], currentTimezone);
-  sunsetEl.textContent  = fmtTime(data.daily.sunset[0],  currentTimezone);
+  sunriseEl.textContent = fmtTime(lastDailyData.sunrise[0], currentTimezone);
+  sunsetEl.textContent  = fmtTime(lastDailyData.sunset[0],  currentTimezone);
   tzEl.textContent = currentTimezone;
 
   // ימים
   dailyGrid.innerHTML = '';
-  const d = data.daily;
+  const d = lastDailyData;
   for (let i=0;i<d.time.length;i++){
     const dateStr = d.time[i];
     const card = document.createElement('div');
@@ -157,8 +254,8 @@ function render(place, data){
       <div class="d">${fmtDate(dateStr, currentTimezone)}</div>
       <div class="wx">${wmoIcon(d.weathercode[i])}</div>
       <div class="minmax">
-        <span>מ׳ <b>${d.temperature_2m_max[i]}°</b></span>
-        <span>ק׳ <b>${d.temperature_2m_min[i]}°</b></span>
+        <span>מ׳ <b>${fmtTemp(d.temperature_2m_max[i])}</b></span>
+        <span>ק׳ <b>${fmtTemp(d.temperature_2m_min[i])}</b></span>
       </div>
       <div class="muted small">משקעים: ${d.precipitation_sum[i]} מ״מ</div>
       <div class="muted small">זריחה: ${fmtTime(d.sunrise[i], currentTimezone)} · שקיעה: ${fmtTime(d.sunset[i], currentTimezone)}</div>
@@ -188,26 +285,57 @@ function render(place, data){
   updateFavToggle(isFavorite(place));
 }
 
-/* חדש: רינדור מגירת שעה */
+/* רינדור לפי שעה + גרפים */
 function renderHourly(dateStr, hourlyData){
   hourlyBody.innerHTML = '';
   hourlyTitle.textContent = `תחזית לפי שעה – ${new Date(dateStr+'T00:00:00').toLocaleDateString('he-IL', {weekday:'long', day:'2-digit', month:'2-digit', timeZone: currentTimezone})}`;
 
   const h = hourlyData.hourly;
   const times = h.time;
+  const labels = times.map(t => fmtTime(t, currentTimezone));
+  const tempsC = h.temperature_2m.map(Number);
+  const tempsDisplay = tempsC.map(c => unit==='F' ? cToF(c) : c);
+  const pops = (h.precipitation_probability || []).map(v => v ?? 0);
+
+  // גרף טמפרטורה
+  const tempCanvas = $('#tempChart');
+  drawLineChart(
+    tempCanvas,
+    labels,
+    tempsDisplay,
+    {
+      yLabelFormatter: v => unit==='F' ? `${Math.round(v)}°` : `${Math.round(v)}°`,
+      strokeStyle: '#2b7de9',
+      fill: true
+    }
+  );
+
+  // גרף הסתברות משקעים
+  const popCanvas = $('#popChart');
+  drawLineChart(
+    popCanvas,
+    labels,
+    pops,
+    {
+      min: 0, max: 100,
+      yLabelFormatter: v => `${Math.round(v)}%`,
+      strokeStyle: '#0a7f3f',
+      fill: false
+    }
+  );
+
+  // טבלה שעתית
   for (let i=0;i<times.length;i++){
     const row = document.createElement('div');
     row.className = 'hour-row';
-    const t = fmtTime(times[i], currentTimezone);
-    const icon = wmoIcon(h.weathercode[i]);
     row.innerHTML = `
-      <div class="h">${t}</div>
+      <div class="h">${labels[i]}</div>
       <div class="v">
-        <span>${icon} טמ׳: <b>${h.temperature_2m[i]}°C</b></span>
+        <span>${wmoIcon(h.weathercode[i])} טמ׳: <b>${fmtTemp(tempsC[i])}</b></span>
         <span>לחות: <b>${h.relativehumidity_2m[i]}%</b></span>
         <span>רוח: <b>${h.windspeed_10m[i]} קמ"ש</b></span>
         <span>משקעים: <b>${h.precipitation[i]} מ״מ</b></span>
-        <span>סיכוי משקעים: <b>${(h.precipitation_probability?.[i] ?? 0)}%</b></span>
+        <span>סיכוי משקעים: <b>${(pops[i] ?? 0)}%</b></span>
       </div>
     `;
     hourlyBody.appendChild(row);
@@ -256,7 +384,7 @@ async function selectPlace(p){
   }
 }
 
-/* ====== מיקום נוכחי ====== */
+
 locBtn.addEventListener('click', ()=>{
   errorBox.textContent = '';
   if(!navigator.geolocation){ errorBox.textContent='הדפדפן לא תומך במיקום.'; return; }
@@ -364,13 +492,20 @@ favClearBtn.addEventListener('click', ()=>{ saveFavorites([]); renderFavList(); 
 searchBtn.addEventListener('click', doSearch);
 cityInput.addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
 
-/* סגירת רשימת הצעות בלחיצה בחוץ */
 document.addEventListener('click', (e)=>{
   if (!suggBox.contains(e.target) && e.target!==cityInput) suggBox.hidden = true;
 });
 
-/* סגירת מגירת שעה */
 hourlyCloseBtn.addEventListener('click', ()=>{
   hourlyPanel.classList.remove('active');
   hourlyPanel.setAttribute('aria-hidden','true');
+});
+
+/* מתג יחידות °C/°F */
+unitBtn.addEventListener('click', ()=>{
+  setUnit(unit === 'C' ? 'F' : 'C');
+  // רינדור מחדש של נוכחי/יומי אם יש נתונים
+  if (currentPlace && lastDailyData && lastCurrentWeather){
+    render(currentPlace, { timezone: currentTimezone, current_weather: lastCurrentWeather, daily: lastDailyData });
+  }
 });
