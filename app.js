@@ -43,7 +43,7 @@ let lastCurrentWeather = null;
 let tempCanvas = null, popCanvas = null;
 let resizeObs = null;
 
-let showCharts = getShowChartsPref(); // שמירת הבחירה (ברירת מחדל: true)
+let showCharts = getShowChartsPref(); // ברירת מחדל: true
 
 /* ===== Service Worker ===== */
 if ('serviceWorker' in navigator) {
@@ -154,7 +154,7 @@ async function fetchHourly(lat, lon, dateStr, tz='auto'){
   return r.json();
 }
 
-/* ===== Canvas/Charts (כולל תיקוני RTL) ===== */
+/* ===== ציור גרפים (עם תיקון RTL לטקסט) ===== */
 function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined; }
 function dpiCanvas(canvas){
   const ratio = Math.max(1, window.devicePixelRatio || 1);
@@ -318,7 +318,6 @@ function openHourlyWithCharts(dateStr, hourlyData){
   hourlyPanel.classList.add('active');
   hourlyPanel.setAttribute('aria-hidden','false');
 
-  // יישור ה־UI למצב השמור + טקסט הכפתור
   setShowChartsPref(showCharts);
 
   hourlyTitle.textContent = `תחזית לפי שעה – ${fmtDateInTZ(dateStr, currentTimezone)}`;
@@ -346,7 +345,6 @@ function openHourlyWithCharts(dateStr, hourlyData){
         showDots:true, showValueLabels:true, valueLabelFormatter:v=>`${Math.round(v)}%`, labelStep:3, labelFilter:v=>v>=10 }
     );
 
-    // רשימת שעות
     for (let i=0;i<h.time.length;i++){
       const row = document.createElement('div');
       row.className = 'hour-row';
@@ -386,13 +384,9 @@ hourlyCloseBtn.addEventListener('click', ()=>{
   hourlyPanel.setAttribute('aria-hidden','true');
   if (resizeObs) resizeObs.disconnect();
 });
+toggleChartsBtn?.addEventListener('click', ()=> setShowChartsPref(!showCharts) );
 
-/* ===== Toggle גרפים – ודא קיום הכפתור והפעלת aria ===== */
-toggleChartsBtn?.addEventListener('click', ()=>{
-  setShowChartsPref(!showCharts);
-});
-
-/* ===== חיפוש (כולל Autocomplete) ===== */
+/* ===== חיפוש ===== */
 async function doSearch(){
   const q = (cityInput.value||'').trim();
   if(!q){ errorBox.textContent='נא להזין שם עיר.'; return; }
@@ -422,7 +416,7 @@ async function selectPlace(p){
   }
 }
 
-/* Autocomplete */
+/* ===== Autocomplete ===== */
 let suggIndex = -1;
 function showSuggestions(results){
   suggBox.innerHTML = '';
@@ -448,7 +442,6 @@ const onTypeSearch = debounce(async ()=>{
     suggBox.hidden = true; suggBox.innerHTML='';
   }
 }, 300);
-
 cityInput.addEventListener('input', onTypeSearch);
 cityInput.addEventListener('keydown', (e)=>{
   const items = Array.from(suggBox.querySelectorAll('button'));
@@ -519,20 +512,19 @@ function renderFavList(){
     return;
   }
   list.forEach(p=>{
-    const wrap = document.createElement('div');
-    wrap.className = 'fav-item';
-    wrap.innerHTML = `
+    const item = document.createElement('div');
+    item.className = 'fav-item';
+    item.tabIndex = 0; // נגישות מקלדת
+    item.innerHTML = `
       <div class="meta">
         <div class="name">${titleFromPlace(p)}</div>
         <div class="muted small" style="opacity:.9">lat ${(+p.latitude).toFixed(3)}, lon ${(+p.longitude).toFixed(3)}</div>
       </div>
-      <div class="fav-actions">
-        <button class="btn secondary" title="פתח">פתח</button>
-        <button class="btn icon" title="מחק">🗑️</button>
-      </div>
+      <button class="btn icon delete" title="מחק" aria-label="מחק">🗑️</button>
     `;
-    const [openBtn, delBtn] = wrap.querySelectorAll('button');
-    openBtn.addEventListener('click', async ()=>{
+
+    // פתיחה בלחיצה על כל הכרטיס
+    item.addEventListener('click', async ()=>{
       favPanel.classList.remove('active');
       try{
         const data = await fetchForecast(p.latitude, p.longitude, 'auto');
@@ -546,12 +538,19 @@ function renderFavList(){
         }
       }
     });
-    delBtn.addEventListener('click', ()=>{
-      const list2 = getFavorites().filter(f => placeId(f)!==placeId(p));
-      saveFavorites(list2);
+    // פתיחה גם עם Enter/Space
+    item.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); item.click(); }});
+
+    // מחיקה – בלי לפתוח
+    const delBtn = item.querySelector('.delete');
+    delBtn.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const left = getFavorites().filter(f => placeId(f)!==placeId(p));
+      saveFavorites(left);
       renderFavList();
     });
-    favList.appendChild(wrap);
+
+    favList.appendChild(item);
   });
 }
 favOpenBtn.addEventListener('click', ()=>{ favPanel.classList.add('active'); renderFavList(); favPanel.setAttribute('aria-hidden','false'); });
@@ -562,5 +561,14 @@ favClearBtn.addEventListener('click', ()=>{ saveFavorites([]); renderFavList(); 
 searchBtn.addEventListener('click', doSearch);
 cityInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && suggBox.hidden) doSearch(); });
 
-/* הפעלה ראשונית של מצב הכפתור */
+/* כפתור °C/°F — תוקן */
+unitBtn.addEventListener('click', ()=>{
+  setUnit(unit === 'C' ? 'F' : 'C');
+  // מרענן את המסך הנוכחי באותה העיר כדי להחליף תצוגת מעלות
+  if (currentPlace && lastDailyData && lastCurrentWeather){
+    render(currentPlace, { timezone: currentTimezone, current_weather: lastCurrentWeather, daily: lastDailyData });
+  }
+});
+
+/* מצב כפתור גרפים בהפעלה */
 setShowChartsPref(showCharts);
