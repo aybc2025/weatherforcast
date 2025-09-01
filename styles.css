@@ -94,16 +94,17 @@ canvas{ width:100%; height:260px; display:block; }
 .hour-row .v{display:flex;flex-wrap:wrap;gap:10px;opacity:.9;}
 .hour-row .v b{opacity:1;}
 
-/* ===== מועדפים – טקסט כהה ומסגרת ===== */
+/* ===== מועדפים – כרטיס קליקבילי ===== */
 .fav-list{padding:8px 8px 80px;display:flex;flex-direction:column;gap:8px}
 .fav-item{
-  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  display:flex;align-items:center;gap:8px;
   background:#fff; color:#0b1220; border:1px solid var(--brd); border-radius:12px; padding:12px;
-  box-shadow:var(--shadow);
+  box-shadow:var(--shadow); cursor:pointer;
 }
-.fav-item *{color:inherit}
-.fav-item .meta{display:flex;flex-direction:column}
+.fav-item:hover{outline:2px solid #cfe1ff}
+.fav-item .meta{flex:1;display:flex;flex-direction:column}
 .fav-item .meta .name{font-weight:800}
+.fav-item .delete{margin-inline-start:8px}
 
 /* מצב כהה */
 @media (prefers-color-scheme: dark){
