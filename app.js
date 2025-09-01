@@ -38,7 +38,6 @@ let unit = getUnit(); // 'C' | 'F'
 let lastDailyData = null;
 let lastCurrentWeather = null;
 
-// קנבאסים וצופה לרוחב
 let tempCanvas = null, popCanvas = null;
 let resizeObs = null;
 
@@ -135,7 +134,7 @@ function cssVar(name){ return getComputedStyle(document.documentElement).getProp
 function dpiCanvas(canvas){
   const ratio = Math.max(1, window.devicePixelRatio || 1);
   const cssW = canvas.clientWidth || 300;
-  const cssH = canvas.clientHeight || 300;
+  const cssH = canvas.clientHeight || 260;
   canvas.width = Math.round(cssW * ratio);
   canvas.height = Math.round(cssH * ratio);
   const ctx = canvas.getContext('2d');
@@ -153,7 +152,7 @@ function drawLineChart(canvas, labels, values, {
   const H = canvas.clientHeight;
   ctx.clearRect(0,0,W,H);
 
-  const pad = { l:46, r:14, t:16, b:30 };  /* ריווח גדול יותר */
+  const pad = { l:54, r:14, t:16, b:30 };
   const w = W - pad.l - pad.r;
   const h = H - pad.t - pad.b;
 
@@ -161,9 +160,8 @@ function drawLineChart(canvas, labels, values, {
   const vmax = (max!==null) ? max : Math.max(...values);
   const span = (vmax - vmin) || 1;
 
-  // grid
   ctx.strokeStyle = cssVar('--grid') || '#d6dbe6';
-  ctx.lineWidth = 1.25;
+  ctx.lineWidth = 1.1;
   ctx.beginPath();
   for (let i=0;i<=4;i++){
     const y = pad.t + (h * i / 4);
@@ -172,18 +170,17 @@ function drawLineChart(canvas, labels, values, {
   }
   ctx.stroke();
 
-  // Y labels
   ctx.fillStyle = cssVar('--muted') || '#5b6876';
-  ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+  ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
   for (let i=0;i<=4;i++){
     const v = vmax - (span * i / 4);
     const y = pad.t + (h * i / 4);
-    ctx.fillText(yLabelFormatter(Math.round(v)), 8, y+4);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(yLabelFormatter(Math.round(v)), 8, y);
   }
 
-  // data
   ctx.strokeStyle = strokeStyle || '#2b7de9';
-  ctx.lineWidth = 3.2;  /* עבה יותר */
+  ctx.lineWidth = 2.8;
   ctx.beginPath();
   values.forEach((v, i)=>{
     const x = pad.l + (w * (values.length===1?0.5:i/(values.length-1)));
@@ -194,7 +191,7 @@ function drawLineChart(canvas, labels, values, {
 
   if (fill){
     const grd = ctx.createLinearGradient(0, pad.t, 0, pad.t+h);
-    grd.addColorStop(0, 'rgba(43,125,233,.28)');
+    grd.addColorStop(0, 'rgba(43,125,233,.22)');
     grd.addColorStop(1, 'rgba(43,125,233,0)');
     ctx.fillStyle = grd;
     ctx.lineTo(pad.l + w, pad.t + h);
@@ -203,15 +200,15 @@ function drawLineChart(canvas, labels, values, {
     ctx.fill();
   }
 
-  // X labels (כל 3 שעות)
   ctx.fillStyle = cssVar('--muted') || '#5b6876';
+  ctx.textBaseline = 'alphabetic';
   for (let i=0;i<labels.length;i+=3){
     const x = pad.l + (w * (labels.length===1?0.5:i/(labels.length-1)));
     ctx.fillText(labels[i], x-12, H-6);
   }
 }
 
-/* ===== רינדור מסכים ===== */
+/* ===== רינדור ===== */
 function render(place, data){
   currentPlace = place;
   currentTimezone = data.timezone || 'UTC';
@@ -285,13 +282,11 @@ function openHourlyWithCharts(dateStr, hourlyData){
   const tempsDisplay = tempsC.map(c => unit==='F' ? cToF(c) : c);
   const pops = (h.precipitation_probability || []).map(v => v ?? 0);
 
-  // ודא גובה ברור גם אם CSS עדיין לא נטען
   tempCanvas = document.getElementById('tempChart');
   popCanvas  = document.getElementById('popChart');
-  tempCanvas.style.height = '300px';
-  popCanvas.style.height  = '300px';
+  tempCanvas.style.height = '260px';
+  popCanvas.style.height  = '260px';
 
-  // צייר אחרי שהמגירה פתוחה (יש רוחב אמיתי)
   requestAnimationFrame(()=> {
     drawLineChart(
       tempCanvas,
@@ -323,18 +318,11 @@ function openHourlyWithCharts(dateStr, hourlyData){
       hourlyBody.appendChild(row);
     }
 
-    // רינדור מחדש על שינוי גודל
     if (resizeObs) resizeObs.disconnect();
     resizeObs = new ResizeObserver(()=>{
       if (!hourlyPanel.classList.contains('active')) return;
-      drawLineChart(
-        tempCanvas, labels, tempsDisplay,
-        { yLabelFormatter: v => `${Math.round(v)}°`, strokeStyle: cssVar('--line1'), fill: true }
-      );
-      drawLineChart(
-        popCanvas, labels, pops,
-        { min:0, max:100, yLabelFormatter: v => `${Math.round(v)}%`, strokeStyle: cssVar('--line2') }
-      );
+      drawLineChart(tempCanvas, labels, tempsDisplay, { yLabelFormatter: v => `${Math.round(v)}°`, strokeStyle: cssVar('--line1'), fill: true });
+      drawLineChart(popCanvas, labels, pops, { min:0, max:100, yLabelFormatter: v => `${Math.round(v)}%`, strokeStyle: cssVar('--line2') });
     });
     resizeObs.observe(hourlyPanel.querySelector('.drawer-sheet'));
   });
@@ -387,7 +375,7 @@ async function selectPlace(p){
 /* ===== מיקום נוכחי ===== */
 locBtn.addEventListener('click', ()=>{
   errorBox.textContent = '';
-  if(!navigator.geolocation){ errorBox.textContent='הדפדפן לא תומך במיקום.'; return; }
+  if(!navigator.geolocation){ errorBox.textcontent='הדפדפן לא תומך במיקום.'; return; }
   locBtn.disabled = true;
   navigator.geolocation.getCurrentPosition(async pos=>{
     try{
