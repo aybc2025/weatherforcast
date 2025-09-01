@@ -43,7 +43,7 @@ let lastCurrentWeather = null;
 let tempCanvas = null, popCanvas = null;
 let resizeObs = null;
 
-let showCharts = getShowChartsPref(); // שמירת הבחירה
+let showCharts = getShowChartsPref(); // שמירת הבחירה (ברירת מחדל: true)
 
 /* ===== Service Worker ===== */
 if ('serviceWorker' in navigator) {
@@ -82,8 +82,11 @@ function getShowChartsPref(){ return localStorage.getItem('weather:showCharts') 
 function setShowChartsPref(v){
   showCharts = !!v;
   localStorage.setItem('weather:showCharts', String(showCharts));
-  chartsWrap.hidden = !showCharts;
-  if (toggleChartsBtn) toggleChartsBtn.textContent = showCharts ? 'הסתר גרפים' : 'הצג גרפים';
+  if (chartsWrap) chartsWrap.hidden = !showCharts;
+  if (toggleChartsBtn){
+    toggleChartsBtn.textContent = showCharts ? 'הסתר גרפים' : 'הצג גרפים';
+    toggleChartsBtn.setAttribute('aria-pressed', String(showCharts));
+  }
 }
 
 /* ===== עזרי זמן ===== */
@@ -151,7 +154,7 @@ async function fetchHourly(lat, lon, dateStr, tz='auto'){
   return r.json();
 }
 
-/* ===== Canvas Utils (עם תיקון RTL לטקסט) ===== */
+/* ===== Canvas/Charts (כולל תיקוני RTL) ===== */
 function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined; }
 function dpiCanvas(canvas){
   const ratio = Math.max(1, window.devicePixelRatio || 1);
@@ -164,13 +167,10 @@ function dpiCanvas(canvas){
   return ctx;
 }
 function drawValueTag(ctx, x, y, text){
-  const padX=4, padY=2;
-  ctx.font = '11px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
-  const w = ctx.measureText(text).width + padX*2;
-  const h = 16, rx = 6, bx = x - w/2, by = y - h - 6;
+  const padX=4; ctx.font = '11px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+  const w = ctx.measureText(text).width + padX*2; const h = 16, rx = 6, bx = x - w/2, by = y - h - 6;
   ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.beginPath();
-  ctx.moveTo(bx+rx, by);
+  ctx.beginPath(); ctx.moveTo(bx+rx, by);
   ctx.arcTo(bx+w, by, bx+w, by+h, rx);
   ctx.arcTo(bx+w, by+h, bx, by+h, rx);
   ctx.arcTo(bx, by+h, bx, by, rx);
@@ -183,12 +183,8 @@ function drawLineChart(canvas, labels, values, {
   min=null, max=null,
   yLabelFormatter=(v)=>String(v),
   strokeStyle=cssVar('--line1'),
-  fill=false,
-  showDots=true,
-  showValueLabels=false,
-  valueLabelFormatter=(v)=>String(v),
-  labelStep=3,
-  labelFilter=null
+  fill=false, showDots=true, showValueLabels=false, valueLabelFormatter=(v)=>String(v),
+  labelStep=3, labelFilter=null
 } = {}){
   const ctx = dpiCanvas(canvas);
   const W = canvas.clientWidth, H = canvas.clientHeight;
@@ -213,12 +209,9 @@ function drawLineChart(canvas, labels, values, {
   ctx.fillStyle = cssVar('--muted') || '#5b6876';
   ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  for (let i=0;i<=4;i++){
-    const v = vmax - (span * i / 4); const y = pad.t + (h * i / 4);
-    ctx.fillText(yLabelFormatter(Math.round(v)), 8, y);
-  }
+  for (let i=0;i<=4;i++){ const v = vmax - (span * i / 4); const y = pad.t + (h * i / 4); ctx.fillText(yLabelFormatter(Math.round(v)), 8, y); }
 
-  // data points
+  // data
   const pts = values.map((v,i)=>{
     const x = pad.l + (w * (values.length===1?0.5:i/(values.length-1)));
     const y = pad.t + h - ((v - vmin) / span) * h;
@@ -237,11 +230,7 @@ function drawLineChart(canvas, labels, values, {
     ctx.fillStyle = grd; ctx.fill();
   }
 
-  if (showDots){
-    ctx.fillStyle = strokeStyle;
-    pts.forEach(({x,y},i)=>{ if (i%2) return; ctx.beginPath(); ctx.arc(x,y,2.6,0,Math.PI*2); ctx.fill(); });
-  }
-
+  if (showDots){ ctx.fillStyle = strokeStyle; pts.forEach(({x,y},i)=>{ if (i%2) return; ctx.beginPath(); ctx.arc(x,y,2.6,0,Math.PI*2); ctx.fill(); }); }
   if (showValueLabels){
     pts.forEach(({x,y,v,i})=>{
       if (i % labelStep !== 0) return;
@@ -250,7 +239,7 @@ function drawLineChart(canvas, labels, values, {
     });
   }
 
-  // X labels (כל 3 שעות)
+  // X labels
   ctx.fillStyle = cssVar('--muted') || '#5b6876';
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   for (let i=0;i<labels.length;i+=3){
@@ -269,7 +258,6 @@ function render(place, data){
   placeTitle.textContent = titleFromPlace(place);
   coordsEl.textContent = `lat ${(+place.latitude).toFixed(3)}, lon ${(+place.longitude).toFixed(3)}`;
 
-  // כותרת "עכשיו"
   currentBox.innerHTML = `
     עכשיו: ${wmoIcon(lastCurrentWeather.weathercode)}
     <b>${fmtTemp(lastCurrentWeather.temperature)}</b>
@@ -277,12 +265,10 @@ function render(place, data){
     · מעודכן: ${fmtTimeInTZ(lastCurrentWeather.time, currentTimezone)} (${fmtTimeInTZ(lastCurrentWeather.time, localTZ)} מקומי)
   `;
 
-  // זריחה/שקיעה — יעד + מקומי בסוגריים
   sunriseEl.innerHTML = `${fmtTimeInTZ(lastDailyData.sunrise[0], currentTimezone)} <span class="muted small">(${fmtTimeInTZ(lastDailyData.sunrise[0], localTZ)} מקומי)</span>`;
   sunsetEl.innerHTML  = `${fmtTimeInTZ(lastDailyData.sunset[0],  currentTimezone)} <span class="muted small">(${fmtTimeInTZ(lastDailyData.sunset[0],  localTZ)} מקומי)</span>`;
   tzEl.textContent = currentTimezone;
 
-  // כרטיסי ימים
   dailyGrid.innerHTML = '';
   const d = lastDailyData;
   for (let i=0;i<d.time.length;i++){
@@ -332,13 +318,13 @@ function openHourlyWithCharts(dateStr, hourlyData){
   hourlyPanel.classList.add('active');
   hourlyPanel.setAttribute('aria-hidden','false');
 
+  // יישור ה־UI למצב השמור + טקסט הכפתור
   setShowChartsPref(showCharts);
 
   hourlyTitle.textContent = `תחזית לפי שעה – ${fmtDateInTZ(dateStr, currentTimezone)}`;
 
   const h = hourlyData.hourly;
-  const times = h.time;
-  const labels = times.map(t => fmtTimeInTZ(t, currentTimezone));
+  const labels = h.time.map(t => fmtTimeInTZ(t, currentTimezone));
   const tempsC = h.temperature_2m.map(Number);
   const tempsDisplay = tempsC.map(c => unit==='F' ? cToF(c) : c);
   const pops = (h.precipitation_probability || []).map(v => v ?? 0);
@@ -361,7 +347,7 @@ function openHourlyWithCharts(dateStr, hourlyData){
     );
 
     // רשימת שעות
-    for (let i=0;i<times.length;i++){
+    for (let i=0;i<h.time.length;i++){
       const row = document.createElement('div');
       row.className = 'hour-row';
       row.innerHTML = `
@@ -400,9 +386,13 @@ hourlyCloseBtn.addEventListener('click', ()=>{
   hourlyPanel.setAttribute('aria-hidden','true');
   if (resizeObs) resizeObs.disconnect();
 });
-toggleChartsBtn.addEventListener('click', ()=> setShowChartsPref(!showCharts) );
 
-/* ===== חיפוש ===== */
+/* ===== Toggle גרפים – ודא קיום הכפתור והפעלת aria ===== */
+toggleChartsBtn?.addEventListener('click', ()=>{
+  setShowChartsPref(!showCharts);
+});
+
+/* ===== חיפוש (כולל Autocomplete) ===== */
 async function doSearch(){
   const q = (cityInput.value||'').trim();
   if(!q){ errorBox.textContent='נא להזין שם עיר.'; return; }
@@ -432,7 +422,7 @@ async function selectPlace(p){
   }
 }
 
-/* ===== Autocomplete תוך כדי הקלדה ===== */
+/* Autocomplete */
 let suggIndex = -1;
 function showSuggestions(results){
   suggBox.innerHTML = '';
@@ -534,7 +524,7 @@ function renderFavList(){
     wrap.innerHTML = `
       <div class="meta">
         <div class="name">${titleFromPlace(p)}</div>
-        <div class="muted small">lat ${(+p.latitude).toFixed(3)}, lon ${(+p.longitude).toFixed(3)}</div>
+        <div class="muted small" style="opacity:.9">lat ${(+p.latitude).toFixed(3)}, lon ${(+p.longitude).toFixed(3)}</div>
       </div>
       <div class="fav-actions">
         <button class="btn secondary" title="פתח">פתח</button>
@@ -571,3 +561,6 @@ favClearBtn.addEventListener('click', ()=>{ saveFavorites([]); renderFavList(); 
 /* ===== אירועים ===== */
 searchBtn.addEventListener('click', doSearch);
 cityInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && suggBox.hidden) doSearch(); });
+
+/* הפעלה ראשונית של מצב הכפתור */
+setShowChartsPref(showCharts);
