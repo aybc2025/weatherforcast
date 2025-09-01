@@ -26,6 +26,8 @@ const hourlyPanel = $('#hourlyPanel');
 const hourlyCloseBtn = $('#hourlyCloseBtn');
 const hourlyBody = $('#hourlyBody');
 const hourlyTitle = $('#hourlyTitle');
+const chartsWrap = $('#chartsWrap');
+const toggleChartsBtn = $('#toggleChartsBtn');
 
 const unitBtn = $('#unitBtn');
 let beforeInstallPromptEvent = null;
@@ -40,6 +42,8 @@ let lastCurrentWeather = null;
 
 let tempCanvas = null, popCanvas = null;
 let resizeObs = null;
+
+let showCharts = getShowChartsPref(); // שמירת הבחירה
 
 /* ===== Service Worker ===== */
 if ('serviceWorker' in navigator) {
@@ -72,6 +76,15 @@ function setUnit(u){
 setUnit(unit);
 function cToF(c){ return (c * 9/5) + 32; }
 function fmtTemp(c){ const v = unit === 'F' ? cToF(c) : c; return `${Math.round(v)}°`; }
+
+/* ===== העדפה לגרפים ===== */
+function getShowChartsPref(){ return localStorage.getItem('weather:showCharts') !== 'false'; }
+function setShowChartsPref(v){
+  showCharts = !!v;
+  localStorage.setItem('weather:showCharts', String(showCharts));
+  chartsWrap.hidden = !showCharts;
+  toggleChartsBtn.textContent = showCharts ? 'הסתר גרפים' : 'הצג גרפים';
+}
 
 /* ===== עזרי תצוגה ===== */
 function wmoIcon(code){
@@ -141,11 +154,40 @@ function dpiCanvas(canvas){
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   return ctx;
 }
+function drawValueTag(ctx, x, y, text){
+  // תגית קטנה עם רקע מעוגל כדי שייראה בכל מצב כהה/בהיר
+  const padX=4, padY=2;
+  ctx.font = '11px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+  const w = ctx.measureText(text).width + padX*2;
+  const h = 16;
+  const rx = 6;
+  const bx = x - w/2, by = y - h - 6;
+
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.beginPath();
+  ctx.moveTo(bx+rx, by);
+  ctx.arcTo(bx+w, by, bx+w, by+h, rx);
+  ctx.arcTo(bx+w, by+h, bx, by+h, rx);
+  ctx.arcTo(bx, by+h, bx, by, rx);
+  ctx.arcTo(bx, by, bx+w, by, rx);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, by + h/2);
+}
 function drawLineChart(canvas, labels, values, {
   min=null, max=null,
   yLabelFormatter=(v)=>String(v),
   strokeStyle=cssVar('--line1'),
-  fill=false
+  fill=false,
+  showDots=true,
+  showValueLabels=false,
+  valueLabelFormatter=(v)=>String(v),
+  labelStep=3,
+  labelFilter=null
 } = {}){
   const ctx = dpiCanvas(canvas);
   const W = canvas.clientWidth;
@@ -160,7 +202,7 @@ function drawLineChart(canvas, labels, values, {
   const vmax = (max!==null) ? max : Math.max(...values);
   const span = (vmax - vmin) || 1;
 
-  // === קביעת יישור וכיוון טקסט כדי שמספרים לא "יברחו" ב-RTL ===
+  // טקסט תמיד LTR כדי שמספרים לא "יברחו" ב-RTL
   ctx.direction = 'ltr';
 
   // grid
@@ -185,29 +227,53 @@ function drawLineChart(canvas, labels, values, {
     ctx.fillText(yLabelFormatter(Math.round(v)), 8, y);
   }
 
-  // data
+  // data path
+  const points = values.map((v,i)=>{
+    const x = pad.l + (w * (values.length===1?0.5:i/(values.length-1)));
+    const y = pad.t + h - ((v - vmin) / span) * h;
+    return {x,y,v,i};
+  });
+
   ctx.strokeStyle = strokeStyle || '#2b7de9';
   ctx.lineWidth = 2.8;
   ctx.beginPath();
-  values.forEach((v, i)=>{
-    const x = pad.l + (w * (values.length===1?0.5:i/(values.length-1)));
-    const y = pad.t + h - ((v - vmin) / span) * h;
-    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-  });
+  points.forEach(({x,y},i)=>{ if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
   ctx.stroke();
 
+  // fill
   if (fill){
-    const grd = ctx.createLinearGradient(0, pad.t, 0, pad.t+h);
-    grd.addColorStop(0, 'rgba(43,125,233,.22)');
-    grd.addColorStop(1, 'rgba(43,125,233,0)');
-    ctx.fillStyle = grd;
     ctx.lineTo(pad.l + w, pad.t + h);
     ctx.lineTo(pad.l, pad.t + h);
     ctx.closePath();
+    const grd = ctx.createLinearGradient(0, pad.t, 0, pad.t+h);
+    grd.addColorStop(0, 'rgba(43,125,233,.20)');
+    grd.addColorStop(1, 'rgba(43,125,233,0)');
+    ctx.fillStyle = grd;
     ctx.fill();
   }
 
-  // X labels (כל 3 שעות)
+  // dots
+  if (showDots){
+    ctx.fillStyle = strokeStyle;
+    points.forEach(({x,y},i)=>{
+      if (i%2!==0) return; // כל שתי נקודות כדי לא לצופף מדי
+      ctx.beginPath();
+      ctx.arc(x,y,2.6,0,Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  // value labels
+  if (showValueLabels){
+    points.forEach(({x,y,v,i})=>{
+      if (i % labelStep !== 0) return;
+      if (typeof labelFilter === 'function' && !labelFilter(v,i)) return;
+      const text = valueLabelFormatter(v);
+      drawValueTag(ctx, x, y, text);
+    });
+  }
+
+  // X labels
   ctx.fillStyle = cssVar('--muted') || '#5b6876';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
@@ -217,7 +283,7 @@ function drawLineChart(canvas, labels, values, {
   }
 }
 
-/* ===== רינדור ===== */
+/* ===== רינדור מסכים ===== */
 function render(place, data){
   currentPlace = place;
   currentTimezone = data.timezone || 'UTC';
@@ -282,7 +348,11 @@ function openHourlyWithCharts(dateStr, hourlyData){
   hourlyPanel.classList.add('active');
   hourlyPanel.setAttribute('aria-hidden','false');
 
-  hourlyTitle.textContent = `תחזית לפי שעה – ${new Date(dateStr+'T00:00:00').toLocaleDateString('he-IL', {weekday:'long', day:'2-digit', month:'2-digit', timeZone: currentTimezone})}`;
+  setShowChartsPref(showCharts); // ליישר את ה-UI לפי ההעדפה
+
+  hourlyTitle.textContent =
+    `תחזית לפי שעה – ${new Date(dateStr+'T00:00:00')
+      .toLocaleDateString('he-IL', {weekday:'long', day:'2-digit', month:'2-digit', timeZone: currentTimezone})}`;
 
   const h = hourlyData.hourly;
   const times = h.time;
@@ -297,17 +367,36 @@ function openHourlyWithCharts(dateStr, hourlyData){
   popCanvas.style.height  = '260px';
 
   requestAnimationFrame(()=> {
+    // טמפרטורה — תוויות כל 3 שעות
     drawLineChart(
       tempCanvas,
       labels,
       tempsDisplay,
-      { yLabelFormatter: v => `${Math.round(v)}°`, strokeStyle: cssVar('--line1'), fill: true }
+      {
+        yLabelFormatter: v => `${Math.round(v)}°`,
+        strokeStyle: cssVar('--line1'),
+        fill: true,
+        showDots: true,
+        showValueLabels: true,
+        valueLabelFormatter: v => `${Math.round(v)}°`,
+        labelStep: 3
+      }
     );
+    // הסתברות משקעים — תוויות רק כשיש ערך משמעותי
     drawLineChart(
       popCanvas,
       labels,
       pops,
-      { min:0, max:100, yLabelFormatter: v => `${Math.round(v)}%`, strokeStyle: cssVar('--line2') }
+      {
+        min:0, max:100,
+        yLabelFormatter: v => `${Math.round(v)}%`,
+        strokeStyle: cssVar('--line2'),
+        showDots: true,
+        showValueLabels: true,
+        valueLabelFormatter: v => `${Math.round(v)}%`,
+        labelStep: 3,
+        labelFilter: (v)=> v >= 10   // אל תציג אפסים כדי לא לצופף
+      }
     );
 
     // רשימת שעות
@@ -327,11 +416,29 @@ function openHourlyWithCharts(dateStr, hourlyData){
       hourlyBody.appendChild(row);
     }
 
+    // רינדור מחדש על שינוי גודל
     if (resizeObs) resizeObs.disconnect();
     resizeObs = new ResizeObserver(()=>{
       if (!hourlyPanel.classList.contains('active')) return;
-      drawLineChart(tempCanvas, labels, tempsDisplay, { yLabelFormatter: v => `${Math.round(v)}°`, strokeStyle: cssVar('--line1'), fill: true });
-      drawLineChart(popCanvas, labels, pops, { min:0, max:100, yLabelFormatter: v => `${Math.round(v)}%`, strokeStyle: cssVar('--line2') });
+      drawLineChart(tempCanvas, labels, tempsDisplay, {
+        yLabelFormatter: v => `${Math.round(v)}°`,
+        strokeStyle: cssVar('--line1'),
+        fill: true,
+        showDots: true,
+        showValueLabels: true,
+        valueLabelFormatter: v => `${Math.round(v)}°`,
+        labelStep: 3
+      });
+      drawLineChart(popCanvas, labels, pops, {
+        min:0, max:100,
+        yLabelFormatter: v => `${Math.round(v)}%`,
+        strokeStyle: cssVar('--line2'),
+        showDots: true,
+        showValueLabels: true,
+        valueLabelFormatter: v => `${Math.round(v)}%`,
+        labelStep: 3,
+        labelFilter: (v)=> v >= 10
+      });
     });
     resizeObs.observe(hourlyPanel.querySelector('.drawer-sheet'));
   });
@@ -341,6 +448,11 @@ hourlyCloseBtn.addEventListener('click', ()=>{
   hourlyPanel.classList.remove('active');
   hourlyPanel.setAttribute('aria-hidden','true');
   if (resizeObs) resizeObs.disconnect();
+});
+
+/* ===== Toggle גרפים ===== */
+toggleChartsBtn.addEventListener('click', ()=>{
+  setShowChartsPref(!showCharts);
 });
 
 /* ===== חיפוש ===== */
