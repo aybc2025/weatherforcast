@@ -28,7 +28,7 @@
   <main class="container">
     <section class="card search">
       <div class="row">
-        <input id="cityInput" class="input" placeholder="חפשו עיר (למשל: New Westminster / תל אביב)" aria-label="חיפוש עיר">
+        <input id="cityInput" class="input" placeholder="חפשו עיר (למשל: New Westminster / תל אביב)" aria-label="חיפוש עיר" autocomplete="off">
         <button id="searchBtn" class="btn">חיפוש</button>
         <button id="locBtn" class="btn secondary">המיקום שלי</button>
       </div>
@@ -59,7 +59,7 @@
         <div id="dailyGrid" class="grid"></div>
       </div>
 
-      <p class="muted small foot">מקור נתונים: Open-Meteo. זמנים מוצגים לפי אזור הזמן של היעד.</p>
+      <p class="muted small foot">מקור נתונים: Open-Meteo. זמנים מוצגים לפי אזור הזמן של היעד (המקומי בסוגריים).</p>
     </section>
   </main>
 
@@ -82,7 +82,7 @@
     <div class="drawer-sheet">
       <div class="drawer-head">
         <h3 id="hourlyTitle">תחזית לפי שעה</h3>
-        <div class="drawer-head-actions" style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center">
           <button id="toggleChartsBtn" class="btn secondary small">הסתר גרפים</button>
           <button id="hourlyCloseBtn" class="btn icon" aria-label="סגור">✕</button>
         </div>
