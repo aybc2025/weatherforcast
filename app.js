@@ -152,7 +152,7 @@ function drawLineChart(canvas, labels, values, {
   const H = canvas.clientHeight;
   ctx.clearRect(0,0,W,H);
 
-  const pad = { l:54, r:14, t:16, b:30 };
+  const pad = { l:54, r:14, t:20, b:32 };
   const w = W - pad.l - pad.r;
   const h = H - pad.t - pad.b;
 
@@ -160,6 +160,10 @@ function drawLineChart(canvas, labels, values, {
   const vmax = (max!==null) ? max : Math.max(...values);
   const span = (vmax - vmin) || 1;
 
+  // === קביעת יישור וכיוון טקסט כדי שמספרים לא "יברחו" ב-RTL ===
+  ctx.direction = 'ltr';
+
+  // grid
   ctx.strokeStyle = cssVar('--grid') || '#d6dbe6';
   ctx.lineWidth = 1.1;
   ctx.beginPath();
@@ -170,15 +174,18 @@ function drawLineChart(canvas, labels, values, {
   }
   ctx.stroke();
 
+  // Y labels
   ctx.fillStyle = cssVar('--muted') || '#5b6876';
   ctx.font = '13px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
   for (let i=0;i<=4;i++){
     const v = vmax - (span * i / 4);
     const y = pad.t + (h * i / 4);
-    ctx.textBaseline = 'middle';
     ctx.fillText(yLabelFormatter(Math.round(v)), 8, y);
   }
 
+  // data
   ctx.strokeStyle = strokeStyle || '#2b7de9';
   ctx.lineWidth = 2.8;
   ctx.beginPath();
@@ -200,11 +207,13 @@ function drawLineChart(canvas, labels, values, {
     ctx.fill();
   }
 
+  // X labels (כל 3 שעות)
   ctx.fillStyle = cssVar('--muted') || '#5b6876';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   for (let i=0;i<labels.length;i+=3){
     const x = pad.l + (w * (labels.length===1?0.5:i/(labels.length-1)));
-    ctx.fillText(labels[i], x-12, H-6);
+    ctx.fillText(labels[i], x, H-6);
   }
 }
 
@@ -375,7 +384,7 @@ async function selectPlace(p){
 /* ===== מיקום נוכחי ===== */
 locBtn.addEventListener('click', ()=>{
   errorBox.textContent = '';
-  if(!navigator.geolocation){ errorBox.textcontent='הדפדפן לא תומך במיקום.'; return; }
+  if(!navigator.geolocation){ errorBox.textContent='הדפדפן לא תומך במיקום.'; return; }
   locBtn.disabled = true;
   navigator.geolocation.getCurrentPosition(async pos=>{
     try{
