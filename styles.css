@@ -9,9 +9,9 @@
   --chip:#eef4ff;
   --ok:#0a7f3f;
   --warn:#b00020;
-  --grid:#d6dbe6;       /* קווי רשת לגרפים */
-  --line1:#2b7de9;      /* קו טמפרטורה */
-  --line2:#0a7f3f;      /* קו הסתברות משקעים */
+  --grid:#d6dbe6;
+  --line1:#2b7de9;
+  --line2:#0a7f3f;
   --shadow:0 2px 10px rgba(0,0,0,.06);
   --radius:16px;
 }
@@ -80,20 +80,29 @@ body{
 
 /* ===== מגירות ===== */
 .drawer{
-  position:fixed;inset:0;background:rgba(0,0,0,.25);display:none
+  position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;z-index:20;
 }
 .drawer[open], .drawer.active{display:block}
 .drawer-sheet{
   position:absolute;inset-inline-start:0;top:0;bottom:0;
-  width:100vw;            /* רחבה בנייד */
-  max-width:720px;        /* תקרת רוחב */
+  width:100vw; max-width:720px;
   background:#fff;border-inline-end:1px solid var(--brd);
-  box-shadow:var(--shadow);display:flex;flex-direction:column
+  box-shadow:var(--shadow);
+  display:flex;flex-direction:column;
+  overflow:auto;               /* כל המגירה נגללת */
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 @media (min-width: 900px){
   .drawer-sheet{ max-width:520px; }
 }
-.drawer-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--brd)}
+
+/* ראש המגירה דביק כדי שלא ייעלם */
+.drawer-head{
+  position:sticky; top:0; z-index:5;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 14px;border-bottom:1px solid var(--brd);
+  background:var(--card);
+}
 .drawer-foot{margin-top:auto;padding:12px;border-top:1px solid var(--brd)}
 .fav-list{padding:8px 8px 80px;display:flex;flex-direction:column;gap:8px}
 .fav-item{
@@ -106,12 +115,12 @@ body{
 /* ===== גרפים ===== */
 .charts{padding:10px;display:flex;flex-direction:column;gap:12px}
 .chart-card{
-  background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:10px
+  background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:10px;overflow:hidden
 }
 .chart-title{font-weight:700;margin:4px 0 8px}
 canvas{
   width:100%;
-  height:300px;          /* גדול וברור יותר */
+  height:260px;  /* מוקטן כדי לפנות מקום לטקסט */
   display:block;
 }
 
@@ -121,8 +130,7 @@ canvas{
   display:flex;
   flex-direction:column;
   gap:8px;
-  max-height:calc(100vh - 120px);
-  overflow:auto;
+  /* אין max-height – כדי למנוע גלילה פנימית שנייה וכיסוי טקסט */
 }
 .hour-row{
   display:grid;
