@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v5';
+const VERSION = 'v6';
 const STATIC_CACHE = `static-${VERSION}`;
 
 const ASSETS = [
@@ -9,10 +9,13 @@ const ASSETS = [
   './app.js',
   './manifest.webmanifest',
   './icons/icon.svg',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
+  // שים לב: אל תוסיף כאן קבצים שלא קיימים בפועל.
+  // אם יש לך 192/512 – בטוח במסלולים האלה – בטל הערות:
+  // './icons/icon-192.png',
+  // './icons/icon-512.png',
 ];
 
+// ===== Install: מוסיף כל קובץ בנפרד כדי שלא ייפול על אחד בעייתי =====
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(STATIC_CACHE);
@@ -24,6 +27,7 @@ self.addEventListener('install', (event) => {
   })());
 });
 
+// ===== Activate: מנקה קאש ישנים =====
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
@@ -32,15 +36,16 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+// ===== Fetch: מטפל רק במשאבים מקומיים =====
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // אל תיירט בקשות API חיצוניות (כמו open-meteo) – תן לדפדפן לטפל ב-CORS רגיל
+  // לא נוגעים בכל מה שלא מאותו origin (כולל Google Fonts / CDNs)
   if (url.origin !== location.origin) return;
 
   // HTML: רשת תחילה, נפילה לקאש
-  if (req.destination === 'document') {
+  if (req.destination === 'document' || req.mode === 'navigate') {
     event.respondWith((async () => {
       try {
         const net = await fetch(req);
@@ -54,7 +59,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // משאבים מקומיים (CSS/JS/תמונות/אייקונים): cache-first
+  // CSS/JS/אייקונים מקומיים: cache-first
   event.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) return cached;
@@ -64,7 +69,7 @@ self.addEventListener('fetch', (event) => {
       cache.put(req, net.clone());
       return net;
     } catch {
-      return cached; // אם יש
+      return cached || Response.error();
     }
   })());
 });
