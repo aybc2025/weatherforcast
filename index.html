@@ -3,105 +3,154 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>מזג אוויר</title>
-  <meta name="theme-color" content="#0a66c2" />
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css">
+  <title>מחשבון מסלולים – TransLink SkyTrain (MVP)</title>
+
+  <!-- Tailwind (להדגשה/עיצוב בסיסי) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            trans: {
+              blue: '#003DA5',   // TransLink brand
+              expo: '#0060A9',   // Expo Line
+              gold: '#FDB515',   // Millennium Line
+              teal: '#00B7C3',   // Canada Line
+              ink:  '#0F172A',
+              haze: '#F5F7FB'
+            }
+          },
+          boxShadow: { soft: '0 10px 30px rgba(0,0,0,.06)' },
+          borderRadius: { '2xl': '1rem', '3xl': '1.25rem' }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; }
+    .card { background: white; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,.06); }
+    .chip { display:inline-flex; align-items:center; gap:.5rem; padding:.25rem .6rem; border-radius:9999px; font-size:.75rem; font-weight:600; }
+    .chip-dot { width:.6rem; height:.6rem; border-radius:9999px; display:inline-block; }
+    #mapHost { background: #fff; border: 1px solid rgba(2,6,23,.08); border-radius: 1rem; overflow: hidden; }
+    #wikiSvgHolder svg { width: 100%; height: 100%; display: block; }
+    #overlay { pointer-events: none; }
+  </style>
 </head>
-<body>
-  <header class="app-header">
-    <div class="container hdr">
-      <div class="brand">
-        <img src="./icons/icon.svg" alt="" class="logo">
-        <h1>מזג אוויר</h1>
+
+<body class="min-h-screen bg-trans-haze text-trans-ink">
+  <!-- Header -->
+  <header class="sticky top-0 z-20 bg-trans-blue/95 text-white backdrop-blur border-b border-white/10">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-4">
+      <div class="flex flex-col">
+        <h1 class="text-lg md:text-xl font-bold leading-tight">מחשבון מסלולים – TransLink SkyTrain (MVP)</h1>
+        <p class="text-xs md:text-sm text-white/80">עיצוב בצבעי TransLink: Expo, Millennium, Canada</p>
       </div>
-      <nav class="actions">
-        <button id="unitBtn" class="btn ghost" title="החלפת יחידות">°C</button>
-        <button id="installBtn" class="btn ghost" title="התקנה למסך הבית" hidden>התקנה</button>
-        <button id="favOpenBtn" class="btn ghost" title="מועדפים">★ מועדפים</button>
-      </nav>
+      <span class="ms-auto chip bg-white/10">Demo</span>
     </div>
   </header>
 
-  <main class="container">
-    <section class="card search">
-      <div class="row">
-        <input id="cityInput" class="input" placeholder="חפשו עיר (למשל: New Westminster / תל אביב)" aria-label="חיפוש עיר" autocomplete="off">
-        <button id="searchBtn" class="btn">חיפוש</button>
-        <button id="locBtn" class="btn secondary">המיקום שלי</button>
-      </div>
-      <div id="suggestions" class="suggestions" role="listbox" aria-label="תוצאות חיפוש" hidden></div>
-      <p class="muted small">טיפ: אפשר עברית או אנגלית. הנתונים מ-Open-Meteo.</p>
-      <p id="error" class="error" role="alert" aria-live="assertive"></p>
+  <!-- Legend -->
+  <div class="bg-white/80 border-b border-slate-200/70">
+    <div class="max-w-5xl mx-auto px-4 py-2 flex flex-wrap items-center gap-2">
+      <span class="chip bg-slate-100"><i class="chip-dot" style="background:#0060A9"></i> Expo Line</span>
+      <span class="chip bg-slate-100"><i class="chip-dot" style="background:#FDB515"></i> Millennium Line</span>
+      <span class="chip bg-slate-100"><i class="chip-dot" style="background:#00B7C3"></i> Canada Line</span>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Search Card -->
+    <section class="card p-4 md:p-6">
+      <h2 class="text-base md:text-lg font-semibold mb-3">חיפוש מסלול</h2>
+      <form id="tripForm" class="grid md:grid-cols-2 gap-4">
+        <label class="block">
+          <span class="text-sm">נקודת מוצא</span>
+          <select id="fromStop" class="mt-1 w-full border border-slate-200 rounded-2xl p-2 focus:outline-none focus:ring-2 focus:ring-trans-blue"></select>
+        </label>
+        <label class="block">
+          <span class="text-sm">יעד</span>
+          <select id="toStop" class="mt-1 w-full border border-slate-200 rounded-2xl p-2 focus:outline-none focus:ring-2 focus:ring-trans-blue"></select>
+        </label>
+
+        <label class="block">
+          <span class="text-sm">זמן יציאה</span>
+          <input id="depTime" type="time" class="mt-1 w-full border border-slate-200 rounded-2xl p-2 focus:outline-none focus:ring-2 focus:ring-trans-blue"/>
+        </label>
+        <label class="block">
+          <span class="text-sm">תאריך</span>
+          <input id="depDate" type="date" class="mt-1 w-full border border-slate-200 rounded-2xl p-2 focus:outline-none focus:ring-2 focus:ring-trans-blue"/>
+        </label>
+
+        <div class="md:col-span-2 flex flex-wrap gap-3">
+          <button type="submit" class="px-4 py-2 rounded-2xl bg-trans-blue text-white font-semibold hover:opacity-95 focus:ring-2 focus:ring-offset-1 focus:ring-trans-blue">
+            חשב מסלולים
+          </button>
+          <button type="button" id="swapBtn" class="px-3 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200">
+            החלף מוצא/יעד
+          </button>
+          <button type="button" id="favBtn" class="px-3 py-2 rounded-2xl bg-amber-100 hover:bg-amber-200">
+            ⭐ שמירה למועדפים
+          </button>
+        </div>
+
+        <p class="md:col-span-2 text-xs text-slate-600 mt-1">
+          זהו <strong>MVP סטטי</strong> (תדירויות וחישוב מסלולים לוגי). זמן-אמת יתחבר בהמשך ל-GTFS-RT.
+        </p>
+      </form>
     </section>
 
-    <section id="resultWrap" class="result" hidden>
-      <div class="card head">
-        <div class="head-top">
-          <div>
-            <h2 id="placeTitle" class="place"></h2>
-            <p id="coords" class="muted small"></p>
-          </div>
-          <button id="favToggle" class="btn icon" title="הוסף/הסר מהמועדפים" aria-pressed="false">☆</button>
-        </div>
-        <div id="current" class="current"></div>
-        <div class="sunrow">
-          <div class="chip"><span>זריחה</span><b id="sunrise"></b></div>
-          <div class="chip"><span>שקיעה</span><b id="sunset"></b></div>
-          <div class="chip"><span>אזור זמן</span><b id="tz"></b></div>
+    <!-- Results Card -->
+    <section class="card p-4 md:p-6">
+      <div class="flex items-center gap-3 mb-3">
+        <h2 class="text-base md:text-lg font-semibold">תוצאות</h2>
+        <span class="text-xs text-slate-500">החלופות מדורגות לפי זמן הגעה ופחות החלפות</span>
+        <div class="map-toolbar ms-auto flex gap-2">
+          <button id="btnShowOnMap" class="px-3 py-1.5 text-sm rounded-xl bg-slate-100 hover:bg-slate-200">הצג מסלול על המפה</button>
+          <button id="btnResetMap" class="px-3 py-1.5 text-sm rounded-xl bg-slate-100 hover:bg-slate-200">אפס תצוגת מפה</button>
         </div>
       </div>
+      <div id="results" class="space-y-4">
+        <p class="text-slate-600 text-sm">אין עדיין תוצאות. מלא/י למעלה ולחץ/י "חשב מסלולים".</p>
+      </div>
+    </section>
 
-      <div class="card">
-        <h3 class="section-title">תחזית 7 ימים</h3>
-        <div id="dailyGrid" class="grid"></div>
+    <!-- Map Card -->
+    <section class="card p-4 md:p-6">
+      <div class="flex items-center gap-3 mb-3">
+        <h2 class="text-base md:text-lg font-semibold">מפה סכמטית (ויקיפדיה)</h2>
+        <span class="text-xs text-slate-500">המסלול הנבחר מודגש מעל המפה</span>
       </div>
 
-      <p class="muted small foot">מקור נתונים: Open-Meteo. זמנים מוצגים לפי אזור הזמן של היעד (המקומי בסוגריים).</p>
+      <div id="mapHost" class="relative w-full h-[520px]">
+        <!-- כאן נטען ה-SVG של ויקיפדיה -->
+        <div id="wikiSvgHolder" class="absolute inset-0"></div>
+        <!-- שכבת ההדגשה / נתיבים -->
+        <svg id="overlay" class="absolute inset-0 w-full h-full"></svg>
+      </div>
+    </section>
+
+    <!-- Favourites -->
+    <section class="card p-4 md:p-6">
+      <div class="flex items-center gap-3 mb-3">
+        <h2 class="text-base md:text-lg font-semibold">מועדפים</h2>
+        <span class="text-xs text-slate-500">לחיצה על מועדף תמלא ותחשב מסלול</span>
+      </div>
+      <div id="favs" class="flex flex-wrap gap-2"></div>
     </section>
   </main>
 
-  <!-- מועדפים -->
-  <aside id="favPanel" class="drawer" aria-hidden="true">
-    <div class="drawer-sheet">
-      <div class="drawer-head">
-        <h3>מועדפים</h3>
-        <button id="favCloseBtn" class="btn icon" aria-label="סגור">✕</button>
-      </div>
-      <div id="favList" class="fav-list"></div>
-      <div class="drawer-foot">
-        <button id="favClearBtn" class="btn danger ghost">נקה הכול</button>
-      </div>
-    </div>
-  </aside>
-
-  <!-- מגירת תחזית לפי שעה + גרפים -->
-  <aside id="hourlyPanel" class="drawer" aria-hidden="true">
-    <div class="drawer-sheet">
-      <div class="drawer-head">
-        <h3 id="hourlyTitle">תחזית לפי שעה</h3>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button id="toggleChartsBtn" class="btn secondary small">הסתר גרפים</button>
-          <button id="hourlyCloseBtn" class="btn icon" aria-label="סגור">✕</button>
-        </div>
-      </div>
-
-      <div class="charts" id="chartsWrap">
-        <div class="chart-card">
-          <div class="chart-title">טמפרטורה לפי שעה</div>
-          <canvas id="tempChart" width="600" height="260" aria-label="גרף טמפרטורה"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">הסתברות משקעים (%) לפי שעה</div>
-          <canvas id="popChart" width="600" height="260" aria-label="גרף הסתברות משקעים"></canvas>
-        </div>
-      </div>
-
-      <div id="hourlyBody" class="hourly-list"><!-- ימולא דינמית --></div>
-    </div>
-  </aside>
+  <footer class="max-w-5xl mx-auto px-4 pb-10 text-xs text-slate-500 space-y-2">
+    <p>
+      Map base ©
+      <a href="https://commons.wikimedia.org/wiki/File:Vancouver_Skytrain_and_Seabus_Map.svg" target="_blank" rel="noopener">
+        Wikimedia Commons – “Vancouver Skytrain and Seabus Map.svg”
+      </a>, CC-BY-SA-4.0.
+    </p>
+  </footer>
 
   <script src="./app.js"></script>
 </body>
