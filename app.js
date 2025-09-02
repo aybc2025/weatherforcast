@@ -159,7 +159,6 @@ async function fetchHourly(lat, lon, dateStr, tz='auto'){
   }
 }
 
-
 /* ===== Canvas utils (כמו קודם) ===== */
 function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined; }
 function dpiCanvas(canvas){ const ratio = Math.max(1, window.devicePixelRatio || 1); const cssW = canvas.clientWidth || 300; const cssH = canvas.clientHeight || 260; canvas.width = Math.round(cssW * ratio); canvas.height = Math.round(cssH * ratio); const ctx = canvas.getContext('2d'); ctx.setTransform(ratio,0,0,ratio,0,0); return ctx; }
@@ -223,19 +222,21 @@ function render(place, data){
       <div class="l muted small">הקישו להצגת תחזית לפי שעה</div>
     `;
     card.addEventListener('click', async ()=>{
-  if (!currentPlace) return;
-  try{
-    const hourly = await fetchHourly(currentPlace.latitude, currentPlace.longitude, dateStr, 'auto');
-    openHourlyWithCharts(dateStr, hourly);
-  }catch(e){
-    // פותח מגירה עם הודעה, במקום להישאר ללא פידבק
-    hourlyPanel.classList.add('active');
-    hourlyPanel.setAttribute('aria-hidden','false');
-    hourlyTitle.textContent = `תחזית לפי שעה – ${fmtDateInTZ(dateStr, currentTimezone)}`;
-    chartsWrap.hidden = true;
-    hourlyBody.innerHTML = `<div class="hour-row"><div class="h">—</div><div class="v"><b>לא ניתן לטעון נתוני שעה (אופליין/רשת עמוסה).</b> נסו שוב בעוד רגע.</div></div>`;
+      if (!currentPlace) return;
+      try{
+        const hourly = await fetchHourly(currentPlace.latitude, currentPlace.longitude, dateStr, 'auto');
+        openHourlyWithCharts(dateStr, hourly);
+      }catch(e){
+        // פותח מגירה עם הודעה, במקום להישאר ללא פידבק
+        hourlyPanel.classList.add('active');
+        hourlyPanel.setAttribute('aria-hidden','false');
+        hourlyTitle.textContent = `תחזית לפי שעה – ${fmtDateInTZ(dateStr, currentTimezone)}`;
+        chartsWrap.hidden = true;
+        hourlyBody.innerHTML = `<div class="hour-row"><div class="h">—</div><div class="v"><b>לא ניתן לטעון נתוני שעה (אופליין/רשת עמוסה).</b> נסו שוב בעוד רגע.</div></div>`;
+      }
+    });
+    dailyGrid.appendChild(card);
   }
-});
 
   resultWrap.hidden = false;
 
