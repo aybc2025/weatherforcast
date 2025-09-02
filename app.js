@@ -13,6 +13,8 @@ const currentBox = $('#current');
 const sunriseEl = $('#sunrise');
 const sunsetEl = $('#sunset');
 const tzEl = $('#tz');
+const localTimeEl = $('#localTime');
+const userTimeEl = $('#userTime');
 const dailyGrid = $('#dailyGrid');
 const favToggle = $('#favToggle');
 
@@ -39,6 +41,7 @@ let currentTimezone = 'UTC';
 let unit = getUnit();
 let lastDailyData = null;
 let lastCurrentWeather = null;
+let timeUpdateInterval = null;
 
 let tempCanvas = null, popCanvas = null;
 let resizeObs = null;
@@ -92,6 +95,34 @@ function setShowChartsPref(v){
 const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const fmtTimeInTZ = (iso, tz)=> new Date(iso).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',timeZone:tz});
 const fmtDateInTZ = (d, tz)=> new Date(d+'T00:00:00').toLocaleDateString('he-IL',{weekday:'long',day:'2-digit',month:'2-digit',timeZone:tz});
+const getCurrentTimeInTZ = (tz) => new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:tz});
+
+/* ===== Update time display ===== */
+function updateTimeDisplay() {
+  if (!currentTimezone || !localTimeEl || !userTimeEl) return;
+  
+  try {
+    localTimeEl.textContent = getCurrentTimeInTZ(currentTimezone);
+    userTimeEl.textContent = getCurrentTimeInTZ(localTZ);
+  } catch (e) {
+    // fallback אם יש בעיה עם timezone
+    localTimeEl.textContent = getCurrentTimeInTZ('UTC');
+    userTimeEl.textContent = getCurrentTimeInTZ(localTZ);
+  }
+}
+
+function startTimeUpdates() {
+  if (timeUpdateInterval) clearInterval(timeUpdateInterval);
+  updateTimeDisplay(); // עדכון מיידי
+  timeUpdateInterval = setInterval(updateTimeDisplay, 1000); // עדכון כל שנייה
+}
+
+function stopTimeUpdates() {
+  if (timeUpdateInterval) {
+    clearInterval(timeUpdateInterval);
+    timeUpdateInterval = null;
+  }
+}
 
 /* ===== UI helpers ===== */
 function wmoIcon(code){
@@ -198,6 +229,8 @@ function render(place, data){
   sunriseEl.innerHTML = `${fmtTimeInTZ(lastDailyData.sunrise[0], currentTimezone)} <span class="muted small">(${fmtTimeInTZ(lastDailyData.sunrise[0], localTZ)} מקומי)</span>`;
   sunsetEl.innerHTML  = `${fmtTimeInTZ(lastDailyData.sunset[0],  currentTimezone)} <span class="muted small">(${fmtTimeInTZ(lastDailyData.sunset[0],  localTZ)} מקומי)</span>`;
   tzEl.textContent = currentTimezone;
+  // התחלת עדכון שעה בזמן אמת
+  startTimeUpdates();
 
   // ימים
   dailyGrid.innerHTML = '';
@@ -448,3 +481,7 @@ unitBtn.addEventListener('click', ()=>{
 
 /* מצב כפתור גרפים בהפעלה */
 setShowChartsPref(showCharts);
+
+// ניקוי interval כשמעבירים לעמוד אחר או סוגרים
+window.addEventListener('beforeunload', stopTimeUpdates);
+window.addEventListener('pagehide', stopTimeUpdates);
