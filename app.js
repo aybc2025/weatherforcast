@@ -126,13 +126,39 @@ async function fetchForecast(lat, lon, tz='auto'){
   url.searchParams.set('timezone', tz);
   const r = await fetch(url); if(!r.ok) throw new Error('שגיאה בשליפת תחזית'); return r.json();
 }
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 9000 } = options;
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const res = await fetch(resource, { ...options, signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function fetchHourly(lat, lon, dateStr, tz='auto'){
   const url = new URL('https://api.open-meteo.com/v1/forecast');
-  url.searchParams.set('latitude', lat); url.searchParams.set('longitude', lon);
+  url.searchParams.set('latitude', lat);
+  url.searchParams.set('longitude', lon);
   url.searchParams.set('hourly', 'temperature_2m,precipitation_probability,precipitation,windspeed_10m,weathercode,relativehumidity_2m');
-  url.searchParams.set('timezone', tz); url.searchParams.set('start_date', dateStr); url.searchParams.set('end_date', dateStr);
-  const r = await fetch(url); if (!r.ok) throw new Error('שגיאה בשליפת תחזית לפי שעה'); return r.json();
+  url.searchParams.set('timezone', tz);
+  url.searchParams.set('start_date', dateStr);
+  url.searchParams.set('end_date', dateStr);
+
+  // ניסיון ראשון
+  try {
+    const r = await fetchWithTimeout(url, { timeout: 9000 });
+    return r.json();
+  } catch (e) {
+    // ניסיון חוזר קצר (לפעמים נפילות רגעיות)
+    const r2 = await fetchWithTimeout(url, { timeout: 9000 });
+    return r2.json();
+  }
 }
+
 
 /* ===== Canvas utils (כמו קודם) ===== */
 function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined; }
@@ -197,14 +223,19 @@ function render(place, data){
       <div class="l muted small">הקישו להצגת תחזית לפי שעה</div>
     `;
     card.addEventListener('click', async ()=>{
-      if (!currentPlace) return;
-      try{
-        const hourly = await fetchHourly(currentPlace.latitude, currentPlace.longitude, dateStr, 'auto');
-        openHourlyWithCharts(dateStr, hourly);
-      }catch{ errorBox.textContent = 'שגיאה בשליפת תחזית לפי שעה.'; }
-    });
-    dailyGrid.appendChild(card);
+  if (!currentPlace) return;
+  try{
+    const hourly = await fetchHourly(currentPlace.latitude, currentPlace.longitude, dateStr, 'auto');
+    openHourlyWithCharts(dateStr, hourly);
+  }catch(e){
+    // פותח מגירה עם הודעה, במקום להישאר ללא פידבק
+    hourlyPanel.classList.add('active');
+    hourlyPanel.setAttribute('aria-hidden','false');
+    hourlyTitle.textContent = `תחזית לפי שעה – ${fmtDateInTZ(dateStr, currentTimezone)}`;
+    chartsWrap.hidden = true;
+    hourlyBody.innerHTML = `<div class="hour-row"><div class="h">—</div><div class="v"><b>לא ניתן לטעון נתוני שעה (אופליין/רשת עמוסה).</b> נסו שוב בעוד רגע.</div></div>`;
   }
+});
 
   resultWrap.hidden = false;
 
