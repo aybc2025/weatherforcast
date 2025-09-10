@@ -39,6 +39,15 @@
       <p id="error" class="error" role="alert" aria-live="assertive"></p>
     </section>
 
+    <!-- מועדפים בדף הראשי -->
+    <section id="homeFavorites" class="card home-favorites" hidden>
+      <div class="section-header">
+        <h3 class="section-title">מועדפים שלי</h3>
+        <button id="toggleHomeFavBtn" class="toggle-btn">סגור</button>
+      </div>
+      <div id="homeFavGrid" class="home-fav-grid"></div>
+    </section>
+
     <section id="resultWrap" class="result" hidden>
       <div class="card head">
         <div class="head-top">
@@ -50,16 +59,11 @@
         </div>
         <div id="current" class="current"></div>
         <div class="sunrow">
-          <div class="chip"><span>זריחה</span><b id="sunrise"></b></div>
-          <div class="chip"><span>שקיעה</span><b id="sunset"></b></div>
-          <div class="chip"><span>אזור זמן</span><b id="tz"></b></div>
+          <div class="chip" id="sunrise"></div>
+          <div class="chip" id="sunset"></div>
+          <div class="chip" id="tz"></div>
         </div>
       </div>
-
-      <div class="sunrow">
-          <div class="chip"><span>שעה מקומית</span><b id="localTime"></b></div>
-          <div class="chip"><span>השעה אצלכם</span><b id="userTime"></b></div>
-        </div>
 
       <div class="card">
         <h3 class="section-title">תחזית 7 ימים</h3>
@@ -79,6 +83,9 @@
       </div>
       <div id="favList" class="fav-list"></div>
       <div class="drawer-foot">
+        <p class="muted small" style="margin-bottom: 10px; padding: 0 10px;">
+          💡 טיפ: לחצו על "הגדר ברירת מחדל" כדי שהעיר תיטען אוטומטית בכל פתיחה
+        </p>
         <button id="favClearBtn" class="btn danger ghost">נקה הכול</button>
       </div>
     </div>
