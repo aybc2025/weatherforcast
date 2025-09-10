@@ -13,8 +13,6 @@ const currentBox = $('#current');
 const sunriseEl = $('#sunrise');
 const sunsetEl = $('#sunset');
 const tzEl = $('#tz');
-const localTimeEl = $('#localTime');
-const userTimeEl = $('#userTime');
 const dailyGrid = $('#dailyGrid');
 const favToggle = $('#favToggle');
 
@@ -31,6 +29,11 @@ const hourlyTitle = $('#hourlyTitle');
 const chartsWrap = $('#chartsWrap');
 const toggleChartsBtn = $('#toggleChartsBtn');
 
+// מועדפים בדף הראשי
+const homeFavorites = $('#homeFavorites');
+const homeFavGrid = $('#homeFavGrid');
+const toggleHomeFavBtn = $('#toggleHomeFavBtn');
+
 const unitBtn = $('#unitBtn');
 let beforeInstallPromptEvent = null;
 const installBtn = $('#installBtn');
@@ -41,7 +44,6 @@ let currentTimezone = 'UTC';
 let unit = getUnit();
 let lastDailyData = null;
 let lastCurrentWeather = null;
-let timeUpdateInterval = null;
 
 let tempCanvas = null, popCanvas = null;
 let resizeObs = null;
@@ -91,38 +93,134 @@ function setShowChartsPref(v){
   }
 }
 
+/* ===== ברירת מחדל למועדפים ===== */
+function getDefaultFavorite() {
+  try {
+    const defaultKey = localStorage.getItem('weather:defaultFavorite');
+    if (!defaultKey) return null;
+    const favorites = getFavorites();
+    return favorites.find(f => placeId(f) === defaultKey) || null;
+  } catch {
+    return null;
+  }
+}
+
+function setDefaultFavorite(place) {
+  if (!place) {
+    localStorage.removeItem('weather:defaultFavorite');
+    return;
+  }
+  localStorage.setItem('weather:defaultFavorite', placeId(place));
+}
+
+function isDefaultFavorite(place) {
+  const defaultKey = localStorage.getItem('weather:defaultFavorite');
+  return defaultKey === placeId(place);
+}
+
+/* ===== מועדפים בדף הראשי ===== */
+function getHomeFavoritesVisible() {
+  return localStorage.getItem('weather:homeFavoritesVisible') !== 'false';
+}
+
+function setHomeFavoritesVisible(visible) {
+  localStorage.setItem('weather:homeFavoritesVisible', String(visible));
+}
+
+function renderHomeFavorites() {
+  const favorites = getFavorites();
+  
+  if (favorites.length === 0) {
+    homeFavorites.hidden = true;
+    return;
+  }
+
+  const visible = getHomeFavoritesVisible();
+  homeFavorites.hidden = false;
+  homeFavGrid.style.display = visible ? 'grid' : 'none';
+  toggleHomeFavBtn.textContent = visible ? 'סגור' : 'פתח';
+
+  if (!visible) return;
+
+  homeFavGrid.innerHTML = '';
+  favorites.forEach(fav => {
+    const item = document.createElement('div');
+    item.className = `home-fav-item ${isDefaultFavorite(fav) ? 'is-default' : ''}`;
+    item.innerHTML = `
+      <div class="name">${fav.name}</div>
+      <div class="coords">lat ${(+fav.latitude).toFixed(2)}, lon ${(+fav.longitude).toFixed(2)}</div>
+    `;
+    
+    item.addEventListener('click', async () => {
+      try {
+        const data = await fetchForecast(fav.latitude, fav.longitude, 'auto');
+        render(fav, data);
+      } catch (e) {
+        const cached = localStorage.getItem(cacheKeyFor(fav));
+        if (cached) {
+          try {
+            const { place, data } = JSON.parse(cached);
+            render(place, data);
+          } catch {}
+        } else {
+          errorBox.textContent = 'אין חיבור ואין מטמון זמין ליעד זה.';
+        }
+      }
+    });
+    
+    homeFavGrid.appendChild(item);
+  });
+}
+
+// חיבור האירועים
+toggleHomeFavBtn?.addEventListener('click', () => {
+  const visible = getHomeFavoritesVisible();
+  setHomeFavoritesVisible(!visible);
+  renderHomeFavorites();
+});
+
+/* ===== טעינה אוטומטית של ברירת מחדל ===== */
+async function loadDefaultFavoriteOnStart() {
+  // תמיד מציגים את המועדפים תחילה
+  renderHomeFavorites();
+  
+  const defaultFav = getDefaultFavorite();
+  if (!defaultFav) return;
+
+  try {
+    // הצגת הודעה על טעינה אוטומטית
+    const message = document.createElement('div');
+    message.className = 'auto-load-message';
+    message.textContent = `טוען ברירת מחדל: ${titleFromPlace(defaultFav)}...`;
+    document.querySelector('.container').insertBefore(message, homeFavorites.nextSibling);
+
+    const data = await fetchForecast(defaultFav.latitude, defaultFav.longitude, 'auto');
+    render(defaultFav, data);
+    
+    // הסרת הודעת הטעינה
+    setTimeout(() => message.remove(), 2000);
+  } catch (e) {
+    // ניסיון טעינה מהמטמון
+    const cached = localStorage.getItem(cacheKeyFor(defaultFav));
+    if (cached) {
+      try {
+        const { place, data } = JSON.parse(cached);
+        render(place, data);
+        
+        const message = document.createElement('div');
+        message.className = 'auto-load-message';
+        message.textContent = `נטען מהמטמון: ${titleFromPlace(place)} (לא מעודכן)`;
+        document.querySelector('.container').insertBefore(message, homeFavorites.nextSibling);
+        setTimeout(() => message.remove(), 3000);
+      } catch {}
+    }
+  }
+}
+
 /* ===== Time helpers ===== */
 const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const fmtTimeInTZ = (iso, tz)=> new Date(iso).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',timeZone:tz});
 const fmtDateInTZ = (d, tz)=> new Date(d+'T00:00:00').toLocaleDateString('he-IL',{weekday:'long',day:'2-digit',month:'2-digit',timeZone:tz});
-const getCurrentTimeInTZ = (tz) => new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:tz});
-
-/* ===== Update time display ===== */
-function updateTimeDisplay() {
-  if (!currentTimezone || !localTimeEl || !userTimeEl) return;
-  
-  try {
-    localTimeEl.textContent = getCurrentTimeInTZ(currentTimezone);
-    userTimeEl.textContent = getCurrentTimeInTZ(localTZ);
-  } catch (e) {
-    // fallback אם יש בעיה עם timezone
-    localTimeEl.textContent = getCurrentTimeInTZ('UTC');
-    userTimeEl.textContent = getCurrentTimeInTZ(localTZ);
-  }
-}
-
-function startTimeUpdates() {
-  if (timeUpdateInterval) clearInterval(timeUpdateInterval);
-  updateTimeDisplay(); // עדכון מיידי
-  timeUpdateInterval = setInterval(updateTimeDisplay, 1000); // עדכון כל שנייה
-}
-
-function stopTimeUpdates() {
-  if (timeUpdateInterval) {
-    clearInterval(timeUpdateInterval);
-    timeUpdateInterval = null;
-  }
-}
 
 /* ===== UI helpers ===== */
 function wmoIcon(code){
@@ -190,7 +288,7 @@ async function fetchHourly(lat, lon, dateStr, tz='auto'){
   }
 }
 
-/* ===== Canvas utils (כמו קודם) ===== */
+/* ===== Canvas utils ===== */
 function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined; }
 function dpiCanvas(canvas){ const ratio = Math.max(1, window.devicePixelRatio || 1); const cssW = canvas.clientWidth || 300; const cssH = canvas.clientHeight || 260; canvas.width = Math.round(cssW * ratio); canvas.height = Math.round(cssH * ratio); const ctx = canvas.getContext('2d'); ctx.setTransform(ratio,0,0,ratio,0,0); return ctx; }
 function drawValueTag(ctx,x,y,text){ const padX=4; ctx.font='11px Heebo, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'; const w=ctx.measureText(text).width+padX*2, h=16, rx=6, bx=x-w/2, by=y-h-6; ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.moveTo(bx+rx,by); ctx.arcTo(bx+w,by,bx+w,by+h,rx); ctx.arcTo(bx+w,by+h,bx,by+h,rx); ctx.arcTo(bx,by+h,bx,by,rx); ctx.arcTo(bx,by,bx+w,by,rx); ctx.closePath(); ctx.fill(); ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(text,x,by+h/2); }
@@ -211,7 +309,7 @@ function drawLineChart(canvas, labels, values, {min=null,max=null,yLabelFormatte
   for(let i=0;i<labels.length;i+=3){ const x=pad.l + (w*(labels.length===1?0.5:i/(labels.length-1))); ctx.fillText(labels[i],x,H-6); }
 }
 
-/* ===== Render ===== */
+/* ===== Render - עם תיקון השעות ===== */
 function render(place, data){
   currentPlace = place; currentTimezone = data.timezone || 'UTC';
   lastDailyData = data.daily; lastCurrentWeather = data.current_weather;
@@ -226,20 +324,27 @@ function render(place, data){
     · מעודכן: ${fmtTimeInTZ(lastCurrentWeather.time, currentTimezone)} (${fmtTimeInTZ(lastCurrentWeather.time, localTZ)} מקומי)
   `;
 
-  sunriseEl.innerHTML = `${fmtTimeInTZ(lastDailyData.sunrise[0], currentTimezone)} <span class="muted small">(${fmtTimeInTZ(lastDailyData.sunrise[0], localTZ)} מקומי)</span>`;
-  sunsetEl.innerHTML  = `${fmtTimeInTZ(lastDailyData.sunset[0],  currentTimezone)} <span class="muted small">(${fmtTimeInTZ(lastDailyData.sunset[0],  localTZ)} מקומי)</span>`;
-  tzEl.textContent = currentTimezone;
-  // התחלת עדכון שעה בזמן אמת
-  startTimeUpdates();
+  // תיקון השעות - עכשיו הכל נמצא בתוך ה-chip
+  sunriseEl.innerHTML = `
+    <span>זריחה</span>
+    <b>${fmtTimeInTZ(lastDailyData.sunrise[0], currentTimezone)}</b>
+    <div class="local-time">מקומי: ${fmtTimeInTZ(lastDailyData.sunrise[0], localTZ)}</div>
+  `;
+  sunsetEl.innerHTML = `
+    <span>שקיעה</span>
+    <b>${fmtTimeInTZ(lastDailyData.sunset[0], currentTimezone)}</b>
+    <div class="local-time">מקומי: ${fmtTimeInTZ(lastDailyData.sunset[0], localTZ)}</div>
+  `;
+  tzEl.innerHTML = `<span>אזור זמן</span><b>${currentTimezone}</b>`;
 
-  // ימים
+  // ימים עם טקסט מתוקן
   dailyGrid.innerHTML = '';
   const d = lastDailyData;
-  for (let i=0;i<d.time.length;i++){
+  for (let i = 0; i < d.time.length; i++) {
     const dateStr = d.time[i];
     const card = document.createElement('div');
     card.className = 'day';
-    card.style.setProperty('--d', `${i*40}ms`); // סטאגר עדין
+    card.style.setProperty('--d', `${i * 40}ms`);
     card.setAttribute('data-date', dateStr);
     card.innerHTML = `
       <div class="d">${fmtDateInTZ(dateStr, currentTimezone)}</div>
@@ -249,20 +354,20 @@ function render(place, data){
       </div>
       <div class="meta">
         <div class="l">משקעים: ${d.precipitation_sum[i]} מ״מ</div>
-        <div class="l">זריחה: ${fmtTimeInTZ(d.sunrise[i], currentTimezone)} (${fmtTimeInTZ(d.sunrise[i], localTZ)} מקומי)</div>
-        <div class="l">שקיעה: ${fmtTimeInTZ(d.sunset[i], currentTimezone)} (${fmtTimeInTZ(d.sunset[i], localTZ)} מקומי)</div>
+        <div class="l">זריחה: ${fmtTimeInTZ(d.sunrise[i], currentTimezone)}</div>
+        <div class="l">שקיעה: ${fmtTimeInTZ(d.sunset[i], currentTimezone)}</div>
       </div>
-      <div class="l muted small">הקישו להצגת תחזית לפי שעה</div>
+      <div class="click-hint">לחץ לתחזית שעתית</div>
     `;
-    card.addEventListener('click', async ()=>{
+    
+    card.addEventListener('click', async () => {
       if (!currentPlace) return;
-      try{
+      try {
         const hourly = await fetchHourly(currentPlace.latitude, currentPlace.longitude, dateStr, 'auto');
         openHourlyWithCharts(dateStr, hourly);
-      }catch(e){
-        // פותח מגירה עם הודעה, במקום להישאר ללא פידבק
+      } catch (e) {
         hourlyPanel.classList.add('active');
-        hourlyPanel.setAttribute('aria-hidden','false');
+        hourlyPanel.setAttribute('aria-hidden', 'false');
         hourlyTitle.textContent = `תחזית לפי שעה – ${fmtDateInTZ(dateStr, currentTimezone)}`;
         chartsWrap.hidden = true;
         hourlyBody.innerHTML = `<div class="hour-row"><div class="h">—</div><div class="v"><b>לא ניתן לטעון נתוני שעה (אופליין/רשת עמוסה).</b> נסו שוב בעוד רגע.</div></div>`;
@@ -331,7 +436,7 @@ hourlyCloseBtn.addEventListener('click', ()=>{
 });
 toggleChartsBtn?.addEventListener('click', ()=> setShowChartsPref(!showCharts) );
 
-/* ===== Search + Autocomplete (כמו קודם) ===== */
+/* ===== Search + Autocomplete ===== */
 async function doSearch(){
   const q = (cityInput.value||'').trim();
   if(!q){ errorBox.textContent='נא להזין שם עיר.'; return; }
@@ -424,50 +529,101 @@ favToggle.addEventListener('click', ()=>{
   const idx = list.findIndex(f => placeId(f)===id);
   if (idx>=0){ list.splice(idx,1); updateFavToggle(false); }
   else{ list.push(place); updateFavToggle(true); }
-  saveFavorites(list); renderFavList();
+  saveFavorites(list); 
+  renderFavList();
+  renderHomeFavorites(); // עדכון המועדפים בדף הראשי
 });
 
-function renderFavList(){
+/* ===== עדכון רשימת מועדפים עם ברירת מחדל ===== */
+function renderFavList() {
   const list = getFavorites();
   favList.innerHTML = '';
-  if (list.length===0){
+  
+  if (list.length === 0) {
     favList.innerHTML = `<p class="muted small" style="padding:8px 10px">אין מועדפים עדיין. חפשו עיר ולחצו ☆ כדי לשמור.</p>`;
     return;
   }
-  list.forEach(p=>{
+
+  list.forEach(p => {
     const item = document.createElement('div');
-    item.className = 'fav-item';
+    item.className = `fav-item ${isDefaultFavorite(p) ? 'is-default' : ''}`;
     item.tabIndex = 0;
+    
     item.innerHTML = `
       <div class="meta">
         <div class="name">${titleFromPlace(p)}</div>
         <div class="muted small" style="opacity:.9">lat ${(+p.latitude).toFixed(3)}, lon ${(+p.longitude).toFixed(3)}</div>
       </div>
+      <button class="btn small default-btn ${isDefaultFavorite(p) ? 'active' : ''}" 
+              title="הגדר כברירת מחדל" 
+              aria-label="הגדר כברירת מחדל"
+              style="font-size: 12px;">
+        ${isDefaultFavorite(p) ? 'ברירת מחדל' : 'הגדר ברירת מחדל'}
+      </button>
       <button class="btn icon delete" title="מחק" aria-label="מחק">🗑️</button>
     `;
-    item.addEventListener('click', async ()=>{
+
+    // לחיצה על הפריט - טעינת התחזית
+    item.addEventListener('click', async (e) => {
+      if (e.target.closest('.default-btn') || e.target.closest('.delete')) return;
+      
       favPanel.classList.remove('active');
-      try{
+      try {
         const data = await fetchForecast(p.latitude, p.longitude, 'auto');
         render(p, data);
-      }catch(e){
+      } catch (e) {
         const cached = localStorage.getItem(cacheKeyFor(p));
-        if (cached){ try{ const {place, data} = JSON.parse(cached); render(place, data); }catch{} }
-        else{ errorBox.textContent = 'אין חיבור ואין מטמון זמין ליעד זה.'; }
+        if (cached) {
+          try {
+            const { place, data } = JSON.parse(cached);
+            render(place, data);
+          } catch {}
+        } else {
+          errorBox.textContent = 'אין חיבור ואין מטמון זמין ליעד זה.';
+        }
       }
     });
-    item.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); item.click(); }});
-    item.querySelector('.delete').addEventListener('click', (ev)=>{
+
+    // כפתור ברירת מחדל
+    item.querySelector('.default-btn').addEventListener('click', (ev) => {
       ev.stopPropagation();
-      const left = getFavorites().filter(f => placeId(f)!==placeId(p));
-      saveFavorites(left); renderFavList();
+      if (isDefaultFavorite(p)) {
+        setDefaultFavorite(null); // ביטול ברירת מחדל
+      } else {
+        setDefaultFavorite(p); // הגדרה כברירת מחדל
+      }
+      renderFavList(); // רענון הרשימה
+      renderHomeFavorites(); // עדכון המועדפים בדף הראשי
     });
+
+    // כפתור מחיקה
+    item.querySelector('.delete').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const left = getFavorites().filter(f => placeId(f) !== placeId(p));
+      saveFavorites(left);
+      
+      // אם זה היה ברירת המחדל, מבטלים אותה
+      if (isDefaultFavorite(p)) {
+        setDefaultFavorite(null);
+      }
+      
+      renderFavList();
+      renderHomeFavorites(); // עדכון המועדפים בדף הראשי
+    });
+
     favList.appendChild(item);
   });
 }
+
 favOpenBtn.addEventListener('click', ()=>{ favPanel.classList.add('active'); renderFavList(); favPanel.setAttribute('aria-hidden','false'); });
 favCloseBtn.addEventListener('click', ()=>{ favPanel.classList.remove('active'); favPanel.setAttribute('aria-hidden','true'); });
-favClearBtn.addEventListener('click', ()=>{ saveFavorites([]); renderFavList(); });
+favClearBtn.addEventListener('click', ()=>{ 
+  // ביטול ברירת מחדל אם קיימת
+  setDefaultFavorite(null);
+  saveFavorites([]); 
+  renderFavList();
+  renderHomeFavorites(); // עדכון המועדפים בדף הראשי
+});
 
 /* ===== Actions ===== */
 searchBtn.addEventListener('click', doSearch);
@@ -482,6 +638,17 @@ unitBtn.addEventListener('click', ()=>{
 /* מצב כפתור גרפים בהפעלה */
 setShowChartsPref(showCharts);
 
-// ניקוי interval כשמעבירים לעמוד אחר או סוגרים
-window.addEventListener('beforeunload', stopTimeUpdates);
-window.addEventListener('pagehide', stopTimeUpdates);
+// הוספת הטעינה האוטומטית לטעינת העמוד
+document.addEventListener('DOMContentLoaded', () => {
+  // המתנה קצרה לוודא שהכל נטען
+  setTimeout(loadDefaultFavoriteOnStart, 500);
+});
+
+// גם כאשר העמוד נטען (fallback)
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    if (!currentPlace) {
+      loadDefaultFavoriteOnStart();
+    }
+  }, 1000);
+});
