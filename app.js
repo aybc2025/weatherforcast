@@ -29,11 +29,6 @@ const hourlyTitle = $('#hourlyTitle');
 const chartsWrap = $('#chartsWrap');
 const toggleChartsBtn = $('#toggleChartsBtn');
 
-// מועדפים בדף הראשי
-const homeFavorites = $('#homeFavorites');
-const homeFavGrid = $('#homeFavGrid');
-const toggleHomeFavBtn = $('#toggleHomeFavBtn');
-
 const unitBtn = $('#unitBtn');
 let beforeInstallPromptEvent = null;
 const installBtn = $('#installBtn');
@@ -118,72 +113,8 @@ function isDefaultFavorite(place) {
   return defaultKey === placeId(place);
 }
 
-/* ===== מועדפים בדף הראשי ===== */
-function getHomeFavoritesVisible() {
-  return localStorage.getItem('weather:homeFavoritesVisible') !== 'false';
-}
-
-function setHomeFavoritesVisible(visible) {
-  localStorage.setItem('weather:homeFavoritesVisible', String(visible));
-}
-
-function renderHomeFavorites() {
-  const favorites = getFavorites();
-  
-  if (favorites.length === 0) {
-    homeFavorites.hidden = true;
-    return;
-  }
-
-  const visible = getHomeFavoritesVisible();
-  homeFavorites.hidden = false;
-  homeFavGrid.style.display = visible ? 'grid' : 'none';
-  toggleHomeFavBtn.textContent = visible ? 'סגור' : 'פתח';
-
-  if (!visible) return;
-
-  homeFavGrid.innerHTML = '';
-  favorites.forEach(fav => {
-    const item = document.createElement('div');
-    item.className = `home-fav-item ${isDefaultFavorite(fav) ? 'is-default' : ''}`;
-    item.innerHTML = `
-      <div class="name">${fav.name}</div>
-      <div class="coords">lat ${(+fav.latitude).toFixed(2)}, lon ${(+fav.longitude).toFixed(2)}</div>
-    `;
-    
-    item.addEventListener('click', async () => {
-      try {
-        const data = await fetchForecast(fav.latitude, fav.longitude, 'auto');
-        render(fav, data);
-      } catch (e) {
-        const cached = localStorage.getItem(cacheKeyFor(fav));
-        if (cached) {
-          try {
-            const { place, data } = JSON.parse(cached);
-            render(place, data);
-          } catch {}
-        } else {
-          errorBox.textContent = 'אין חיבור ואין מטמון זמין ליעד זה.';
-        }
-      }
-    });
-    
-    homeFavGrid.appendChild(item);
-  });
-}
-
-// חיבור האירועים
-toggleHomeFavBtn?.addEventListener('click', () => {
-  const visible = getHomeFavoritesVisible();
-  setHomeFavoritesVisible(!visible);
-  renderHomeFavorites();
-});
-
 /* ===== טעינה אוטומטית של ברירת מחדל ===== */
 async function loadDefaultFavoriteOnStart() {
-  // תמיד מציגים את המועדפים תחילה
-  renderHomeFavorites();
-  
   const defaultFav = getDefaultFavorite();
   if (!defaultFav) return;
 
@@ -192,7 +123,7 @@ async function loadDefaultFavoriteOnStart() {
     const message = document.createElement('div');
     message.className = 'auto-load-message';
     message.textContent = `טוען ברירת מחדל: ${titleFromPlace(defaultFav)}...`;
-    document.querySelector('.container').insertBefore(message, homeFavorites.nextSibling);
+    document.querySelector('.container').insertBefore(message, document.querySelector('.card.search').nextSibling);
 
     const data = await fetchForecast(defaultFav.latitude, defaultFav.longitude, 'auto');
     render(defaultFav, data);
@@ -210,7 +141,7 @@ async function loadDefaultFavoriteOnStart() {
         const message = document.createElement('div');
         message.className = 'auto-load-message';
         message.textContent = `נטען מהמטמון: ${titleFromPlace(place)} (לא מעודכן)`;
-        document.querySelector('.container').insertBefore(message, homeFavorites.nextSibling);
+        document.querySelector('.container').insertBefore(message, document.querySelector('.card.search').nextSibling);
         setTimeout(() => message.remove(), 3000);
       } catch {}
     }
@@ -317,11 +248,26 @@ function render(place, data){
   placeTitle.textContent = titleFromPlace(place);
   coordsEl.textContent = `lat ${(+place.latitude).toFixed(3)}, lon ${(+place.longitude).toFixed(3)}`;
 
+  // חישוב זמן העדכון
+  const updateTime = new Date(lastCurrentWeather.time);
+  const now = new Date();
+  const timeDiff = Math.floor((now - updateTime) / (1000 * 60)); // הפרש בדקות
+
+  let timeText = '';
+  if (timeDiff < 60) {
+    timeText = `לפני ${timeDiff} דקות`;
+  } else if (timeDiff < 1440) { // פחות מיום
+    const hours = Math.floor(timeDiff / 60);
+    timeText = `לפני ${hours} שעות`;
+  } else {
+    timeText = `נתונים מ-${fmtTimeInTZ(lastCurrentWeather.time, currentTimezone)}`;
+  }
+
   currentBox.innerHTML = `
     עכשיו: ${wmoIcon(lastCurrentWeather.weathercode)}
     <b>${fmtTemp(lastCurrentWeather.temperature)}</b>
     · רוח ${lastCurrentWeather.windspeed} קמ"ש (כיוון ${lastCurrentWeather.winddirection}°)
-    · מעודכן: ${fmtTimeInTZ(lastCurrentWeather.time, currentTimezone)} (${fmtTimeInTZ(lastCurrentWeather.time, localTZ)} מקומי)
+    · ${timeText}
   `;
 
   // תיקון השעות - עכשיו הכל נמצא בתוך ה-chip
@@ -529,9 +475,7 @@ favToggle.addEventListener('click', ()=>{
   const idx = list.findIndex(f => placeId(f)===id);
   if (idx>=0){ list.splice(idx,1); updateFavToggle(false); }
   else{ list.push(place); updateFavToggle(true); }
-  saveFavorites(list); 
-  renderFavList();
-  renderHomeFavorites(); // עדכון המועדפים בדף הראשי
+  saveFavorites(list); renderFavList();
 });
 
 /* ===== עדכון רשימת מועדפים עם ברירת מחדל ===== */
@@ -554,13 +498,15 @@ function renderFavList() {
         <div class="name">${titleFromPlace(p)}</div>
         <div class="muted small" style="opacity:.9">lat ${(+p.latitude).toFixed(3)}, lon ${(+p.longitude).toFixed(3)}</div>
       </div>
-      <button class="btn small default-btn ${isDefaultFavorite(p) ? 'active' : ''}" 
-              title="הגדר כברירת מחדל" 
-              aria-label="הגדר כברירת מחדל"
-              style="font-size: 12px;">
-        ${isDefaultFavorite(p) ? 'ברירת מחדל' : 'הגדר ברירת מחדל'}
-      </button>
-      <button class="btn icon delete" title="מחק" aria-label="מחק">🗑️</button>
+      <div class="actions">
+        <button class="btn small default-btn ${isDefaultFavorite(p) ? 'active' : ''}" 
+                title="הגדר כברירת מחדל" 
+                aria-label="הגדר כברירת מחדל"
+                type="button">
+          ${isDefaultFavorite(p) ? 'ברירת מחדל' : 'הגדר ברירת מחדל'}
+        </button>
+        <button class="btn small delete" title="מחק" aria-label="מחק" type="button">מחק</button>
+      </div>
     `;
 
     // לחיצה על הפריט - טעינת התחזית
@@ -593,7 +539,6 @@ function renderFavList() {
         setDefaultFavorite(p); // הגדרה כברירת מחדל
       }
       renderFavList(); // רענון הרשימה
-      renderHomeFavorites(); // עדכון המועדפים בדף הראשי
     });
 
     // כפתור מחיקה
@@ -608,7 +553,6 @@ function renderFavList() {
       }
       
       renderFavList();
-      renderHomeFavorites(); // עדכון המועדפים בדף הראשי
     });
 
     favList.appendChild(item);
