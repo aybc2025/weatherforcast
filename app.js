@@ -184,6 +184,13 @@ async function fetchForecast(lat, lon, tz='auto'){
   url.searchParams.set('current_weather', 'true');
   url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,sunrise,sunset');
   url.searchParams.set('timezone', tz);
+  
+  // הוספת תאריכי התחלה וסיום כדי לוודא שמקבלים רק ימים עתידיים
+  const today = new Date().toISOString().split('T')[0];
+  const endDate = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  url.searchParams.set('start_date', today);
+  url.searchParams.set('end_date', endDate);
+  
   const r = await fetch(url); if(!r.ok) throw new Error('שגיאה בשליפת תחזית'); return r.json();
 }
 async function fetchWithTimeout(resource, options = {}) {
@@ -283,17 +290,34 @@ function render(place, data){
   `;
   tzEl.innerHTML = `<span>אזור זמן</span><b>${currentTimezone}</b>`;
 
-  // ימים עם טקסט מתוקן
+  // ימים עם טקסט מתוקן - רק ימים מהיום ואילך
   dailyGrid.innerHTML = '';
   const d = lastDailyData;
+  const today = new Date().toISOString().split('T')[0];
+  
   for (let i = 0; i < d.time.length; i++) {
     const dateStr = d.time[i];
+    // דילוג על ימים עברו
+    if (dateStr < today) continue;
+    
+    const dayIndex = dailyGrid.children.length; // מספר הכרטיס הנוכחי שמוצג
     const card = document.createElement('div');
     card.className = 'day';
-    card.style.setProperty('--d', `${i * 40}ms`);
+    card.style.setProperty('--d', `${dayIndex * 40}ms`);
     card.setAttribute('data-date', dateStr);
+    
+    // תצוגה מיוחדת ליום הראשון והשני
+    let dayLabel;
+    if (dayIndex === 0) {
+      dayLabel = 'היום';
+    } else if (dayIndex === 1) {
+      dayLabel = 'מחר';
+    } else {
+      dayLabel = fmtDateInTZ(dateStr, currentTimezone);
+    }
+    
     card.innerHTML = `
-      <div class="d">${fmtDateInTZ(dateStr, currentTimezone)}</div>
+      <div class="d">${dayLabel}</div>
       <div class="rowline">
         <div class="wx">${wmoIcon(d.weathercode[i])}</div>
         <div class="temps"><span class="max">${fmtTemp(d.temperature_2m_max[i])}</span><span class="min">${fmtTemp(d.temperature_2m_min[i])}</span></div>
