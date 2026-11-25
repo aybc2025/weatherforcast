@@ -1,75 +1,86 @@
-// sw.js
-const VERSION = 'v6';
-const STATIC_CACHE = `static-${VERSION}`;
-
+// Service worker. Owns only caches prefixed "weather-app-" (github.io origin is shared with other apps).
+const PREFIX = 'weather-app-';
+const VERSION = 'v7';
+const CACHE = PREFIX + VERSION;
 const ASSETS = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
   './manifest.webmanifest',
-  './icons/icon.svg',
-  // שים לב: אל תוסיף כאן קבצים שלא קיימים בפועל.
-  // אם יש לך 192/512 – בטוח במסלולים האלה – בטל הערות:
-  // './icons/icon-192.png',
-  // './icons/icon-512.png',
+  './fonts/heebo-hebrew-400-normal.woff2',
+  './fonts/heebo-hebrew-600-normal.woff2',
+  './fonts/heebo-hebrew-800-normal.woff2',
+  './fonts/heebo-latin-400-normal.woff2',
+  './fonts/heebo-latin-600-normal.woff2',
+  './fonts/heebo-latin-800-normal.woff2',
+  './icons/apple-touch-icon.png',
+  './icons/favicon-32.png',
+  './icons/icon-192.png',
+  './icons/icon-512-maskable.png',
+  './icons/icon-512.png',
+  './src/api.js',
+  './src/config.js',
+  './src/dom.js',
+  './src/icons.js',
+  './src/load.js',
+  './src/main.js',
+  './src/places.js',
+  './src/pwa.js',
+  './src/state.js',
+  './src/storage.js',
+  './src/theme.js',
+  './src/time.js',
+  './src/ui/charts.js',
+  './src/ui/favorites.js',
+  './src/ui/home.js',
+  './src/ui/nav.js',
+  './src/ui/search.js',
+  './src/ui/sections.js',
+  './src/ui/settings.js',
+  './src/ui/sheet.js',
+  './src/ui/toast.js',
+  './src/units.js',
+  './src/wmo.js',
+  './styles/base.css',
+  './styles/components.css',
+  './styles/fonts.css',
+  './styles/tokens.css',
 ];
 
-// ===== Install: מוסיף כל קובץ בנפרד כדי שלא ייפול על אחד בעייתי =====
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil((async () => {
-    const cache = await caches.open(STATIC_CACHE);
-    for (const url of ASSETS) {
-      try { await cache.add(url); }
-      catch (e) { console.warn('[SW] skip', url, e); }
-    }
-    self.skipWaiting();
+    const cache = await caches.open(CACHE);
+    await Promise.all(ASSETS.map(url => cache.add(url).catch(e => console.warn('[sw] skip', url, e))));
   })());
 });
 
-// ===== Activate: מנקה קאש ישנים =====
-self.addEventListener('activate', (event) => {
+self.addEventListener('message', e => { if (e.data === 'SKIP_WAITING') self.skipWaiting(); });
+
+self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== STATIC_CACHE).map(k => caches.delete(k)));
-    self.clients.claim();
+    await Promise.all(keys.filter(k => k.startsWith(PREFIX) && k !== CACHE).map(k => caches.delete(k)));
+    await self.clients.claim();
   })());
 });
 
-// ===== Fetch: מטפל רק במשאבים מקומיים =====
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  const url = new URL(req.url);
+const STATIC = /\/(fonts|icons)\//;
 
-  // לא נוגעים בכל מה שלא מאותו origin (כולל Google Fonts / CDNs)
-  if (url.origin !== location.origin) return;
-
-  // HTML: רשת תחילה, נפילה לקאש
-  if (req.destination === 'document' || req.mode === 'navigate') {
-    event.respondWith((async () => {
-      try {
-        const net = await fetch(req);
-        const cache = await caches.open(STATIC_CACHE);
-        cache.put(req, net.clone());
-        return net;
-      } catch {
-        return (await caches.match(req)) || (await caches.match('./index.html'));
-      }
-    })());
-    return;
-  }
-
-  // CSS/JS/אייקונים מקומיים: cache-first
+self.addEventListener('fetch', event => {
+  const req = event.request, url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  const cacheFirst = STATIC.test(url.pathname);
   event.respondWith((async () => {
-    const cached = await caches.match(req);
-    if (cached) return cached;
+    const cache = await caches.open(CACHE);
+    if (cacheFirst) {
+      const hit = await cache.match(req);
+      if (hit) return hit;
+    }
     try {
       const net = await fetch(req);
-      const cache = await caches.open(STATIC_CACHE);
-      cache.put(req, net.clone());
+      if (net.ok) cache.put(req, net.clone());
       return net;
     } catch {
-      return cached || Response.error();
+      return (await cache.match(req)) || (req.mode === 'navigate' ? await cache.match('./index.html') : Response.error());
     }
   })());
 });
