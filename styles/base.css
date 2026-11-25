@@ -1,0 +1,22 @@
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 var(--text-body)/1.5 "Heebo",system-ui,sans-serif;min-height:100dvh}
+h1,h2,h3,p,ul{margin:0;padding:0}
+ul{list-style:none}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+svg{display:block}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{max-width:560px;margin-inline:auto;padding:var(--s4) var(--s4) calc(var(--tabbar-h) + var(--s5) + env(safe-area-inset-bottom))}
+.view>*+*,.stack>*+*{margin-top:var(--s3)}
+.muted{color:var(--muted)}
+.meta{font-size:var(--text-meta)}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ico--s{width:20px;height:20px}
+.ico--l{width:40px;height:40px;stroke-width:1.5}
+.ico--xl{width:88px;height:88px;stroke-width:1.25}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+.ico--fill{fill:currentColor}

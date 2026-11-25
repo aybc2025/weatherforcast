@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+.netlify/
+*.pem
+*.key
+*.p12
+serviceAccount*.json
+*service-account*.json
+*credentials*.json
+node_modules/
+.DS_Store
+# local agent notes, never published
+CLAUDE.md
+.claude/

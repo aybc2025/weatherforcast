@@ -1,0 +1,47 @@
+/* Declared visual system. Every colour/space/radius in the app traces to a token here. */
+:root{
+  color-scheme:light;
+  --bg:#F4F7FB; --surface:#FFFFFF; --surface-2:#EAF0F8; --ink:#0B1B2E; --muted:#51627A;
+  --line:#D6DEEA; --accent:#1D6FE0; --accent-ink:#FFFFFF; --sun:#9A5B00;
+  --warn-bg:#FFF1D6; --warn-ink:#6B3F00; --danger:#B3261E;
+  --chart-1:#1D6FE0; --chart-2:#0F7F63; --grid:#D6DEEA; --warm:#E08A00;
+  --aqi-good:#0F7F63; --aqi-mid:#9A5B00; --aqi-bad:#B3261E;
+  --backdrop:rgb(5 15 35 / .45);
+
+  --hero-day:linear-gradient(160deg,#2B6FD6,#1B3F7A);
+  --hero-night:linear-gradient(160deg,#1B2A52,#0C1530);
+  --hero-cloud:linear-gradient(160deg,#5B6B83,#37445A);
+  --hero-fog:linear-gradient(160deg,#66727F,#434E5B);
+  --hero-rain:linear-gradient(160deg,#3B5578,#1F2F4A);
+  --hero-snow:linear-gradient(160deg,#5A7396,#3A5070);
+  --hero-storm:linear-gradient(160deg,#3F3A66,#1E1B38);
+
+  --text-meta:13px; --text-body:15px; --text-lead:17px; --text-title:20px; --text-h:28px; --text-display:76px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
+  --r-sm:12px; --r-md:20px; --r-lg:28px;
+  --e1:0 1px 2px rgb(11 27 46 / .10); --e2:0 -8px 30px rgb(11 27 46 / .25);
+  --ease-out:cubic-bezier(.23,1,.32,1); --ease-drawer:cubic-bezier(.32,.72,0,1);
+  --dur-fast:160ms; --dur:240ms;
+  --tabbar-h:64px; --dir:1;
+}
+:root[dir="rtl"]{--dir:-1}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0A1424; --surface:#12213A; --surface-2:#1A2D4D; --ink:#EAF1FB; --muted:#9DB0CA;
+    --line:#2A4066; --accent:#5AA2FF; --accent-ink:#04122A; --sun:#FFB547;
+    --warn-bg:#3A2A10; --warn-ink:#FFD9A0; --danger:#FF8A80;
+    --chart-1:#5AA2FF; --chart-2:#4ADE80; --grid:#2A4066; --warm:#FFB547;
+    --aqi-good:#4ADE80; --aqi-mid:#FFB547; --aqi-bad:#FF8A80;
+    --backdrop:rgb(0 0 0 / .6); --e1:none; --e2:0 -8px 30px rgb(0 0 0 / .5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0A1424; --surface:#12213A; --surface-2:#1A2D4D; --ink:#EAF1FB; --muted:#9DB0CA;
+  --line:#2A4066; --accent:#5AA2FF; --accent-ink:#04122A; --sun:#FFB547;
+  --warn-bg:#3A2A10; --warn-ink:#FFD9A0; --danger:#FF8A80;
+  --chart-1:#5AA2FF; --chart-2:#4ADE80; --grid:#2A4066; --warm:#FFB547;
+  --aqi-good:#4ADE80; --aqi-mid:#FFB547; --aqi-bad:#FF8A80;
+  --backdrop:rgb(0 0 0 / .6); --e1:none; --e2:0 -8px 30px rgb(0 0 0 / .5);
+}
